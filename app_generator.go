@@ -1,19 +1,23 @@
 package main
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/sivaprasadreddy/sbgen/generators/springboot"
 )
 
 var (
 	javaPackagePattern = regexp.MustCompile(`^[a-zA-Z_$][a-zA-Z0-9_$]*(\.[a-zA-Z_$][a-zA-Z0-9_$]*)*$`)
+	generationMutex    sync.Mutex
 )
 
 type ConfigService struct{}
@@ -58,17 +62,135 @@ func (s *ConfigService) GenerateProject(configurationJSON string) (filePath stri
 		return "", fmt.Errorf("create downloads directory: %w", err)
 	}
 
-	//TODO;
-	//populate projectConfig data from configuration
-	// Generate project and download it as a zip file and return the path to the zip file
-	projectConfig := springboot.ProjectConfig{}
+	projectConfig := toProjectConfig(configuration)
 
-	err = springboot.GenerateProject(projectConfig)
+	// The Spring Boot generator writes relative to the process working directory.
+	// Serialize generation so changing it cannot interfere with another request.
+	generationMutex.Lock()
+	defer generationMutex.Unlock()
+
+	workingDirectory, err := os.MkdirTemp("", "sbgen-")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create generation directory: %w", err)
+	}
+	defer os.RemoveAll(workingDirectory)
+
+	originalDirectory, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("find current directory: %w", err)
+	}
+	if err := os.Chdir(workingDirectory); err != nil {
+		return "", fmt.Errorf("enter generation directory: %w", err)
+	}
+	if err := springboot.GenerateProject(projectConfig); err != nil {
+		_ = os.Chdir(originalDirectory)
+		return "", fmt.Errorf("generate project: %w", err)
+	}
+	if err := os.Chdir(originalDirectory); err != nil {
+		return "", fmt.Errorf("restore working directory: %w", err)
 	}
 
-	return "", nil
+	zipPath := filepath.Join(downloadsDirectory, projectConfig.AppName+".zip")
+	zipFile, err := os.Create(zipPath)
+	if err != nil {
+		return "", fmt.Errorf("create project archive: %w", err)
+	}
+	if err := zipDirectory(zipFile, filepath.Join(workingDirectory, projectConfig.AppName)); err != nil {
+		_ = zipFile.Close()
+		_ = os.Remove(zipPath)
+		return "", fmt.Errorf("archive project: %w", err)
+	}
+	if err := zipFile.Close(); err != nil {
+		_ = os.Remove(zipPath)
+		return "", fmt.Errorf("close project archive: %w", err)
+	}
+
+	return zipPath, nil
+}
+
+func toProjectConfig(configuration generatorConfiguration) springboot.ProjectConfig {
+	buildTool := springboot.Maven
+	if configuration.Project.BuildTool != "maven" {
+		buildTool = springboot.Gradle
+	}
+
+	appType := springboot.RestApi
+	if configuration.Frontend.Type == "thymeleaf" {
+		appType = springboot.WebApp
+	} else if configuration.Frontend.Type == "angular" {
+		appType = springboot.SpringBootAngular
+	}
+	databaseTypes := map[string]springboot.DatabaseType{
+		"postgresql": springboot.PostgreSQL,
+		"mysql":      springboot.MySQL,
+		"mariadb":    springboot.MariaDB,
+		"h2":         springboot.DatabaseType("H2"),
+	}
+	migrationTools := map[string]springboot.DbMigrationTool{
+		"none":      springboot.DbMigrationTool("None"),
+		"flyway":    springboot.Flyway,
+		"liquibase": springboot.Liquibase,
+	}
+
+	return springboot.ProjectConfig{
+		AppType:               appType,
+		AppName:               strings.TrimSpace(configuration.Project.ArtifactID),
+		GroupID:               strings.TrimSpace(configuration.Project.GroupID),
+		ArtifactID:            strings.TrimSpace(configuration.Project.ArtifactID),
+		AppVersion:            "1.0.0",
+		BasePackage:           configuration.Project.PackageName,
+		BuildTool:             buildTool,
+		DbType:                databaseTypes[configuration.Database.Engine],
+		DbMigrationTool:       migrationTools[configuration.Database.MigrationTool],
+		DockerComposeSupport:  contains(configuration.Features, "docker-compose"),
+		SpringModulithSupport: contains(configuration.Features, "spring-modulith"),
+		SpringCloudAWSSupport: contains(configuration.Features, "spring-cloud-aws"),
+		ThymeleafSupport:      configuration.Frontend.Type == "thymeleaf",
+		SecuritySupport:       configuration.Security.Mode == "http-session",
+		JwtSecuritySupport:    configuration.Security.Mode == "oauth-resource-server",
+	}
+}
+
+func zipDirectory(destination io.Writer, sourceDirectory string) error {
+	archive := zip.NewWriter(destination)
+	err := filepath.Walk(sourceDirectory, func(filePath string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		relativePath, err := filepath.Rel(filepath.Dir(sourceDirectory), filePath)
+		if err != nil {
+			return err
+		}
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+		header.Name = filepath.ToSlash(relativePath)
+		header.Method = zip.Deflate
+		entry, err := archive.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+		file, err := os.Open(filePath)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(entry, file)
+		closeErr := file.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	})
+	if err != nil {
+		_ = archive.Close()
+		return err
+	}
+	return archive.Close()
 }
 
 func validateConfiguration(configuration generatorConfiguration) error {
@@ -77,6 +199,10 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	}
 	if strings.TrimSpace(configuration.Project.ArtifactID) == "" {
 		return fmt.Errorf("artifact ID is required")
+	}
+	artifactID := strings.TrimSpace(configuration.Project.ArtifactID)
+	if artifactID == "." || artifactID == ".." || filepath.Base(artifactID) != artifactID || strings.ContainsAny(artifactID, `/\\`) {
+		return fmt.Errorf("invalid artifact ID %q", configuration.Project.ArtifactID)
 	}
 	if !javaPackagePattern.MatchString(configuration.Project.PackageName) {
 		return fmt.Errorf("invalid Java package name %q", configuration.Project.PackageName)

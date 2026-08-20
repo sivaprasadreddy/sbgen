@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react'
-import { ConfigService } from '../bindings/changeme'
+import { ConfigService } from '../bindings/github.com/sivaprasadreddy/sbgen'
 
 const steps = ['Welcome', 'Project', 'Frontend', 'Database', 'Security', 'Features', 'Review', 'Complete']
 
