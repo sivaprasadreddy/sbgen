@@ -1,0 +1,270 @@
+package springboot
+
+import (
+	"embed"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path"
+	"runtime"
+	"strings"
+	"text/template"
+
+	"github.com/sivaprasadreddy/sbgen/generators/helpers"
+)
+
+//go:embed all:templates/*
+var tmplsFS embed.FS
+
+const templatesRootDir = "templates"
+
+// ProjectConfig holds all configuration options for generating a Spring Boot project.
+type ProjectConfig struct {
+	Versions              `json:"-"`
+	AppType               AppType
+	AppName               string
+	GroupID               string
+	ArtifactID            string
+	AppVersion            string
+	BasePackage           string
+	BuildTool             BuildTool
+	DbType                DatabaseType
+	DbMigrationTool       DbMigrationTool
+	DockerComposeSupport  bool
+	SpringModulithSupport bool
+	SpringCloudAWSSupport bool
+	ThymeleafSupport      bool
+	HTMXSupport           bool
+	SecuritySupport       bool
+	JwtSecuritySupport    bool
+}
+
+var defaultProjectConfig = ProjectConfig{
+	AppType:               RestApi,
+	AppName:               "myapp",
+	GroupID:               "com.mycompany",
+	ArtifactID:            "myapp",
+	AppVersion:            "1.0.0",
+	BasePackage:           "com.mycompany.myapp",
+	BuildTool:             Maven,
+	DbType:                PostgreSQL,
+	DbMigrationTool:       Flyway,
+	DockerComposeSupport:  true,
+	SpringModulithSupport: false,
+	SpringCloudAWSSupport: false,
+	ThymeleafSupport:      false,
+	HTMXSupport:           false,
+	SecuritySupport:       false,
+	JwtSecuritySupport:    false,
+}
+
+func Run(configFile string) error {
+	var projectConfig ProjectConfig
+	var err error
+	if strings.TrimSpace(configFile) == "" {
+		projectConfig, err = getAnswers()
+	} else {
+		projectConfig, err = loadConfig(configFile)
+	}
+	helpers.FatalIfErr(err)
+	err = GenerateProject(projectConfig)
+	helpers.FatalIfErrOrMsg(err, "Project generated successfully")
+	return err
+}
+
+func GenerateProject(pc ProjectConfig) error {
+	pc.Versions = defaultVersions()
+	pg := projectGenerator{tmplFS: tmplsFS}
+	if err := pg.generate(pc); err != nil {
+		return err
+	}
+	return writeConfigFile(pc, pc.AppName+"/.progen.json")
+}
+
+func GenerateInitConfig() error {
+	return writeConfigFile(defaultProjectConfig, ".progen.json")
+}
+
+func loadConfig(configFile string) (ProjectConfig, error) {
+	var config ProjectConfig
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return config, fmt.Errorf("failed to read config file: %w", err)
+	}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return config, fmt.Errorf("failed to unmarshal config file: %w", err)
+	}
+	return validateAndSanitize(config), nil
+}
+
+func validateAndSanitize(pc ProjectConfig) ProjectConfig {
+	// Validate string fields
+	if strings.TrimSpace(pc.AppName) == "" {
+		fmt.Printf("WARNING: AppName '%s' is invalid. Using default: %s\n", pc.AppName, defaultProjectConfig.AppName)
+		pc.AppName = defaultProjectConfig.AppName
+	}
+	if strings.TrimSpace(pc.GroupID) == "" {
+		fmt.Printf("WARNING: GroupID '%s' is invalid. Using default: %s\n", pc.GroupID, defaultProjectConfig.GroupID)
+		pc.GroupID = defaultProjectConfig.GroupID
+	}
+	if strings.TrimSpace(pc.ArtifactID) == "" {
+		fmt.Printf("WARNING: ArtifactID '%s' is invalid. Using default: %s\n", pc.ArtifactID, defaultProjectConfig.ArtifactID)
+		pc.ArtifactID = defaultProjectConfig.ArtifactID
+	}
+	if strings.TrimSpace(pc.AppVersion) == "" {
+		fmt.Printf("WARNING: AppVersion '%s' is invalid. Using default: %s\n", pc.AppVersion, defaultProjectConfig.AppVersion)
+		pc.AppVersion = defaultProjectConfig.AppVersion
+	}
+	if strings.TrimSpace(pc.BasePackage) == "" {
+		fmt.Printf("WARNING: BasePackage '%s' is invalid. Using default: %s\n", pc.BasePackage, defaultProjectConfig.BasePackage)
+		pc.BasePackage = defaultProjectConfig.BasePackage
+	}
+	// Validate AppType
+	if pc.AppType != RestApi && pc.AppType != WebApp && pc.AppType != SpringBootAngular {
+		fmt.Printf("WARNING: AppType '%s' is invalid. Using default: %s\n", pc.AppType, defaultProjectConfig.AppType)
+		pc.AppType = defaultProjectConfig.AppType
+	}
+
+	// Validate BuildTool
+	if pc.BuildTool != Maven && pc.BuildTool != Gradle {
+		fmt.Printf("WARNING: BuildTool '%s' is invalid. Using default: %s\n", pc.BuildTool, defaultProjectConfig.BuildTool)
+		pc.BuildTool = defaultProjectConfig.BuildTool
+	}
+
+	// Validate DatabaseType
+	if pc.DbType != PostgreSQL && pc.DbType != MySQL && pc.DbType != MariaDB {
+		fmt.Printf("WARNING: DbType '%s' is invalid. Using default: %s\n", pc.DbType, defaultProjectConfig.DbType)
+		pc.DbType = defaultProjectConfig.DbType
+	}
+
+	// Validate DbMigrationTool
+	if pc.DbMigrationTool != Flyway && pc.DbMigrationTool != Liquibase {
+		fmt.Printf("WARNING: DbMigrationTool '%s' is invalid. Using default: %s\n", pc.DbMigrationTool, defaultProjectConfig.DbMigrationTool)
+		pc.DbMigrationTool = defaultProjectConfig.DbMigrationTool
+	}
+
+	return pc
+}
+
+func writeConfigFile(pc ProjectConfig, filePath string) error {
+	data, err := json.MarshalIndent(pc, "", " ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal project config: %w", err)
+	}
+	_, err = helpers.CreateFileWithData(filePath, data)
+	if err != nil {
+		return fmt.Errorf("failed to write .progen.json file: %w", err)
+	}
+	return nil
+}
+
+type configGenerator interface {
+	generate(ProjectConfig) error
+}
+
+type projectGenerator struct {
+	tmplFS embed.FS
+}
+
+func (pg projectGenerator) generate(pc ProjectConfig) error {
+	if err := helpers.RecreateDir(pc.AppName); err != nil {
+		return err
+	}
+
+	generators := []configGenerator{
+		NewBuildToolConfig(pg),
+		NewSdkmanConfig(pg),
+		NewTaskfileConfig(pg),
+		NewRenovateConfig(pg),
+		NewGitIgnoreConfig(pg),
+		NewDockerComposeConfig(pg),
+		NewGhActionsConfig(pg),
+		NewReadMeConfig(pg),
+		NewAppCommonConfig(pg),
+		NewThymeleafConfig(pg),
+		NewDbMigrationsConfig(pg),
+		NewSpringModulithConfig(pg),
+		NewSecurityConfig(pg),
+		NewSpringCloudAwsConfig(pg),
+	}
+
+	for _, gen := range generators {
+		if err := gen.generate(pc); err != nil {
+			return err
+		}
+	}
+
+	return pg.formatCode(pc)
+}
+
+func (pg projectGenerator) copyTemplateDir(pc ProjectConfig, origin, dirName string) error {
+	templateDirPath := fmt.Sprintf("%s/%s", templatesRootDir, origin)
+	return helpers.CopyDir(pg.tmplFS, templateDirPath, pc.AppName, dirName)
+}
+
+func (pg projectGenerator) copyTemplateFile(pc ProjectConfig, sourceFilePath, targetFilePath string) error {
+	templateFilePath := fmt.Sprintf("%s/%s", templatesRootDir, sourceFilePath)
+	return helpers.CopyTemplateFile(pg.tmplFS, templateFilePath, pc.AppName, targetFilePath)
+}
+
+func (pg projectGenerator) writeTargetFile(content []byte, targetFilePath string) error {
+	return helpers.WriteTargetFile(content, targetFilePath)
+}
+
+func (pg projectGenerator) executeTemplate(pc ProjectConfig, templatePath, targetFilePath string) error {
+	templateFilePath := fmt.Sprintf("%s/%s", templatesRootDir, templatePath)
+	tmplFileContent, err := pg.tmplFS.ReadFile(templateFilePath)
+	if err != nil {
+		return err
+	}
+	tmpl, err := template.New(templateFilePath).Parse(string(tmplFileContent))
+	if err != nil {
+		return err
+	}
+	f := helpers.CreateFile(path.Join(".", pc.AppName, targetFilePath))
+	defer f.Close()
+	err = tmpl.Execute(f, pc)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (pg projectGenerator) formatCode(pc ProjectConfig) error {
+	executable, formatCmd := pg.getBuildToolCommands(pc.BuildTool)
+	appFormatCmd := pg.buildCommandString(pc.AppName, executable, formatCmd)
+	cmd := pg.createOSCommand(appFormatCmd)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println("failed to format project code\n%w", output)
+	}
+	return err
+}
+
+func (pg projectGenerator) getBuildToolCommands(buildTool BuildTool) (executable, formatCmd string) {
+	isWindows := runtime.GOOS == "windows"
+
+	if buildTool == Gradle {
+		if isWindows {
+			return "gradlew.bat", "spotlessApply"
+		}
+		return "./gradlew", "spotlessApply"
+	}
+
+	if isWindows {
+		return "mvnw.cmd", "spotless:apply"
+	}
+	return "./mvnw", "spotless:apply"
+}
+
+func (pg projectGenerator) buildCommandString(dirName, executable, formatCmd string) string {
+	return fmt.Sprintf("cd %s && %s %s", dirName, executable, formatCmd)
+}
+
+func (pg projectGenerator) createOSCommand(command string) *exec.Cmd {
+	if runtime.GOOS == "windows" {
+		return exec.Command("cmd", "/C", command)
+	}
+	return exec.Command("/bin/sh", "-c", command)
+}

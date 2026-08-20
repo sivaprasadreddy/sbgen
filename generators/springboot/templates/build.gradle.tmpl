@@ -1,0 +1,211 @@
+plugins {
+	id "java"
+	id "org.springframework.boot" version "{{ .SpringBootVersion }}"
+    id "io.spring.dependency-management" version "{{ .GradleDependencyMgmtVersion }}"
+    id "com.gorylenko.gradle-git-properties" version "{{ .GradleGitPropertiesVersion }}"
+    id "com.diffplug.spotless" version "{{ .SpotlessGradlePluginVersion }}"
+}
+
+group = "{{ .GroupID }}"
+version = "{{ .AppVersion }}"
+
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of({{ .JavaVersion }})
+  }
+}
+
+configurations {
+  compileOnly {
+    extendsFrom annotationProcessor
+  }
+}
+
+repositories {
+	mavenCentral()
+}
+
+ext {
+{{- if eq .AppType "REST API" }}
+  set('springdocOpenapiVersion', "{{ .SpringdocOpenapiVersion }}")
+{{- end }}
+{{- if .SpringCloudAWSSupport }}
+  set('awspringVersion', "{{ .SpringCloudAWSVersion }}")
+  set('bootTcFlociVersion', "{{ .SpringBootFlociTcVersion }}")
+{{- end }}
+{{- if .SpringModulithSupport }}
+  set('springModulithVersion', "{{ .SpringModulithVersion }}")
+{{- end }}
+{{- if .ThymeleafSupport }}
+  set('bootstrapVersion', "{{ .BootstrapVersion }}")
+  set('jqueryVersion', "{{ .JqueryVersion }}")
+  set('fontawesomeVersion', "{{ .FontAwesomeVersion }}")
+{{- end }}
+{{- if .HTMXSupport }}
+  set('htmxVersion', "{{ .HtmxVersion }}")
+{{- end }}
+{{- if and .ThymeleafSupport .HTMXSupport }}
+  set('htmxSpringBootThymeleafVersion', "{{ .HtmxSpringBootThymeleafVersion }}")
+{{- end }}
+{{- if .JwtSecuritySupport }}
+  set('jjwtVersion', "{{ .JjwtVersion }}")
+{{- end }}
+  set('palantirJavaFormatVersion', "{{ .PalantirJavaFormatVersion }}")
+  set('archunitVersion', "{{ .ArchunitVersion }}")
+}
+
+dependencies {
+    implementation "org.springframework.boot:spring-boot-starter-webmvc"
+    implementation "org.springframework.boot:spring-boot-starter-validation"
+    implementation "org.springframework.boot:spring-boot-starter-actuator"
+    {{- if or .SecuritySupport .JwtSecuritySupport }}
+    implementation "org.springframework.boot:spring-boot-starter-security"
+    {{- end }}
+    {{- if .ThymeleafSupport }}
+    implementation "org.springframework.boot:spring-boot-starter-thymeleaf"
+    implementation "nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect"
+    {{- if .SecuritySupport }}
+    implementation "org.thymeleaf.extras:thymeleaf-extras-springsecurity6"
+    {{- end }}
+    {{- if .HTMXSupport }}
+    implementation "io.github.wimdeblauwe:htmx-spring-boot-thymeleaf:${htmxSpringBootThymeleafVersion}"
+    {{- end }}
+    {{- end }}
+    {{- if eq .AppType "REST API" }}
+    implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocOpenapiVersion}"
+    {{- end }}
+    implementation "org.springframework.boot:spring-boot-starter-data-jpa"
+    {{- if eq .DbType "PostgreSQL" }}
+    runtimeOnly "org.postgresql:postgresql"
+    {{- end }}
+    {{- if eq .DbType "MySQL" }}
+    runtimeOnly "com.mysql:mysql-connector-j"
+    {{- end }}
+    {{- if eq .DbType "MariaDB" }}
+    runtimeOnly "org.mariadb.jdbc:mariadb-java-client"
+    {{- end }}
+    {{- if eq .DbMigrationTool "Flyway"}}
+    implementation "org.springframework.boot:spring-boot-starter-flyway"
+    {{- if eq .DbType "PostgreSQL" }}
+    runtimeOnly "org.flywaydb:flyway-database-postgresql"
+    {{- end }}
+    {{- if or (eq .DbType "MySQL") (eq .DbType "MariaDB") }}
+    implementation "org.flywaydb:flyway-mysql"
+    {{- end }}
+    {{- end }}
+    {{- if eq .DbMigrationTool "Liquibase"}}
+    implementation "org.springframework.boot:spring-boot-starter-liquibase"
+    {{- end }}
+    {{- if .SpringModulithSupport }}
+    implementation "org.springframework.modulith:spring-modulith-starter-core"
+    implementation "org.springframework.modulith:spring-modulith-docs"
+    runtimeOnly 'org.springframework.modulith:spring-modulith-actuator'
+    {{- end }}
+    {{- if .SpringCloudAWSSupport }}
+    implementation "io.awspring.cloud:spring-cloud-aws-starter"
+    implementation "io.awspring.cloud:spring-cloud-aws-starter-s3"
+    {{- end }}
+    {{- if .ThymeleafSupport }}
+    implementation "org.webjars:webjars-locator-lite"
+    implementation "org.webjars:bootstrap:${bootstrapVersion}"
+    implementation "org.webjars:jquery:${jqueryVersion}"
+    implementation "org.webjars:font-awesome:${fontawesomeVersion}"
+    {{- end }}
+    {{- if .HTMXSupport }}
+    implementation "org.webjars.npm:htmx.org:${htmxVersion}"
+    {{- end }}
+    {{- if .JwtSecuritySupport }}
+    implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+    implementation "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+    implementation "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+    {{- end }}
+    developmentOnly "org.springframework.boot:spring-boot-devtools"
+    annotationProcessor "org.springframework.boot:spring-boot-configuration-processor"
+    {{- if .DockerComposeSupport }}
+    developmentOnly "org.springframework.boot:spring-boot-docker-compose"
+    {{- end }}
+
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+
+    {{- if eq .DbMigrationTool "Flyway"}}
+    testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
+    {{- end }}
+    {{- if eq .DbMigrationTool "Liquibase"}}
+    testImplementation 'org.springframework.boot:spring-boot-starter-liquibase-test'
+    {{- end }}
+    {{- if or .SecuritySupport .JwtSecuritySupport }}
+    testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+    {{- end }}
+    {{- if .ThymeleafSupport }}
+    testImplementation 'org.springframework.boot:spring-boot-starter-thymeleaf-test'
+    {{- end }}
+    {{- if .SpringModulithSupport }}
+    testImplementation "org.springframework.modulith:spring-modulith-starter-test"
+    {{- end }}
+    testImplementation "org.springframework.boot:spring-boot-testcontainers"
+    testImplementation "org.testcontainers:testcontainers-junit-jupiter"
+    {{- if eq .DbType "PostgreSQL" }}
+    testImplementation "org.testcontainers:testcontainers-postgresql"
+    {{- end }}
+    {{- if eq .DbType "MySQL" }}
+    testImplementation "org.testcontainers:testcontainers-mysql"
+    {{- end }}
+    {{- if eq .DbType "MariaDB" }}
+    testImplementation "org.testcontainers:testcontainers-mariadb"
+    {{- end }}
+    {{- if .SpringCloudAWSSupport }}
+    testImplementation "io.floci:spring-boot-testcontainers-floci:${bootTcFlociVersion}"
+    {{- end }}
+    testImplementation "com.tngtech.archunit:archunit-junit5:${archunitVersion}"
+}
+
+dependencyManagement {
+    imports {
+        {{- if .SpringCloudAWSSupport }}
+        mavenBom "io.awspring.cloud:spring-cloud-aws-dependencies:${awspringVersion}"
+        {{- end }}
+        {{- if .SpringModulithSupport }}
+        mavenBom "org.springframework.modulith:spring-modulith-bom:${springModulithVersion}"
+        {{- end }}
+    }
+}
+
+tasks.named("bootBuildImage") {
+	imageName = "your_dockerhub_username/{{ .ArtifactID }}"
+}
+
+tasks.named("test") {
+	useJUnitPlatform()
+	testLogging {
+		events = ["PASSED", "FAILED", "SKIPPED"]
+		showStandardStreams = true
+		exceptionFormat = "full"
+	}
+}
+
+gitProperties {
+    failOnNoGitDirectory = false
+    keys = [
+            "git.branch",
+            "git.commit.id.abbrev",
+            "git.commit.user.name",
+            "git.commit.message.full"
+    ]
+}
+
+spotless {
+    java {
+        importOrder()
+        removeUnusedImports()
+        formatAnnotations()
+        palantirJavaFormat("${palantirJavaFormatVersion}")
+    }
+    groovyGradle {
+        target '*.gradle'
+        greclipse()
+    }
+}
