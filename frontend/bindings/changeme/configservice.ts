@@ -5,6 +5,6 @@
 // @ts-ignore: Unused imports
 import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
-export function SaveConfiguration(configurationJSON: string, artifactID: string): $CancellablePromise<string> {
-    return $Call.ByID(389537572, configurationJSON, artifactID);
+export function GenerateProject(configurationJSON: string): $CancellablePromise<string> {
+    return $Call.ByID(796158577, configurationJSON);
 }

@@ -175,7 +175,7 @@ function App() {
     setIsGenerating(true)
     setGenerationError('')
     try {
-      const filePath = await ConfigService.SaveConfiguration(JSON.stringify(configuration), savedMetadata.artifactId)
+      const filePath = await ConfigService.GenerateProject(JSON.stringify(configuration))
       setDownloadedFilePath(filePath)
       setActiveStep(7)
     } catch (error) {
@@ -532,10 +532,10 @@ function App() {
           <div className="complete-step">
             <div className="welcome-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7 16.5 13 22l12-13" /></svg></div>
             <p className="eyebrow">Complete</p>
-            <h1>Configuration downloaded</h1>
-            <p className="description">Your selected Spring Boot project details were saved as a JSON configuration file.</p>
+            <h1>Project downloaded</h1>
+            <p className="description">Your Spring Boot Maven project was generated and saved as a ZIP archive.</p>
             <div className="download-location">
-              <span>Downloaded file</span>
+              <span>Downloaded project</span>
               <code>{downloadedFilePath}</code>
             </div>
             <button type="button" className="continue-button" onClick={handleStartNew}>Start New</button>

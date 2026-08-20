@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+    https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>{{ .SpringBootVersion }}</version>
+    <relativePath/>
+  </parent>
+  <groupId>{{ xml .GroupID }}</groupId>
+  <artifactId>{{ xml .ArtifactID }}</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <name>{{ xml .ArtifactID }}</name>
+  <properties>
+    <java.version>{{ .JavaVersion }}</java.version>
+{{- if .HasModulith }}
+    <spring-modulith.version>{{ .SpringModulithVersion }}</spring-modulith.version>
+{{- end }}
+{{- if .HasCloudAWS }}
+    <spring-cloud-aws.version>{{ .SpringCloudAWSVersion }}</spring-cloud-aws.version>
+{{- end }}
+  </properties>
+  <dependencies>
+{{- range .Dependencies }}
+    <dependency>
+      <groupId>{{ .GroupID }}</groupId>
+      <artifactId>{{ .ArtifactID }}</artifactId>
+{{- if .Scope }}
+      <scope>{{ .Scope }}</scope>
+{{- end }}
+{{- if .Optional }}
+      <optional>true</optional>
+{{- end }}
+    </dependency>
+{{- end }}
+  </dependencies>
+{{- if or .HasModulith .HasCloudAWS }}
+  <dependencyManagement>
+    <dependencies>
+{{- if .HasModulith }}
+      <dependency>
+        <groupId>org.springframework.modulith</groupId>
+        <artifactId>spring-modulith-bom</artifactId>
+        <version>${spring-modulith.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+{{- end }}
+{{- if .HasCloudAWS }}
+      <dependency>
+        <groupId>io.awspring.cloud</groupId>
+        <artifactId>spring-cloud-aws-dependencies</artifactId>
+        <version>${spring-cloud-aws.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+{{- end }}
+    </dependencies>
+  </dependencyManagement>
+{{- end }}
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
