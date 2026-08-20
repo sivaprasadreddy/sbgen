@@ -9,11 +9,11 @@ Generated Spring Boot {{ .GroupID }}:{{ .ArtifactID }} application.
 ## Build and test
 
 ```shell
-./mvnw test
+{{ .BuildCommand }}
 ```
 
 ## Run
 
 ```shell
-./mvnw spring-boot:run
+{{ .RunCommand }}
 ```

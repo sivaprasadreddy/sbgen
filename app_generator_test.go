@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"slices"
@@ -130,9 +131,191 @@ func TestMinimalGeneratedApplication(t *testing.T) {
 		t.Errorf("generated README does not document the build:\n%s", readme)
 	}
 	assertArchiveFileMode(t, archive, "demo/mvnw", 0o755)
-	assertArchiveFileMode(t, archive, "demo/mvnw.cmd", 0o755)
+	assertArchiveFileMode(t, archive, "demo/mvnw.cmd", 0o644)
 
 	smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
+}
+
+func TestGeneratedBuildTools(t *testing.T) {
+	tests := []struct {
+		name          string
+		buildTool     string
+		buildFile     string
+		settingsFile  string
+		wrapperFiles  []string
+		excludedFiles []string
+	}{
+		{
+			name:          "Maven",
+			buildTool:     "maven",
+			buildFile:     "pom.xml",
+			wrapperFiles:  []string{".mvn/wrapper/maven-wrapper.properties", "mvnw", "mvnw.cmd"},
+			excludedFiles: []string{"build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "gradlew", "gradlew.bat"},
+		},
+		{
+			name:          "Gradle Groovy",
+			buildTool:     "gradle-groovy",
+			buildFile:     "build.gradle",
+			settingsFile:  "settings.gradle",
+			wrapperFiles:  []string{"gradle/wrapper/gradle-wrapper.jar", "gradle/wrapper/gradle-wrapper.properties", "gradlew", "gradlew.bat"},
+			excludedFiles: []string{"pom.xml", "build.gradle.kts", "settings.gradle.kts", "mvnw", "mvnw.cmd"},
+		},
+		{
+			name:          "Gradle Kotlin",
+			buildTool:     "gradle-kotlin",
+			buildFile:     "build.gradle.kts",
+			settingsFile:  "settings.gradle.kts",
+			wrapperFiles:  []string{"gradle/wrapper/gradle-wrapper.jar", "gradle/wrapper/gradle-wrapper.properties", "gradlew", "gradlew.bat"},
+			excludedFiles: []string{"pom.xml", "build.gradle", "settings.gradle", "mvnw", "mvnw.cmd"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			configuration := minimalConfiguration()
+			configuration.Project.BuildTool = test.buildTool
+			filePath, archive := generateProjectArchive(t, configuration)
+			root := configuration.Project.ArtifactID + "/"
+
+			wantFiles := []string{root + test.buildFile}
+			if test.settingsFile != "" {
+				wantFiles = append(wantFiles, root+test.settingsFile)
+			}
+			for _, wrapper := range test.wrapperFiles {
+				wantFiles = append(wantFiles, root+wrapper)
+			}
+			assertArchiveContains(t, archive, wantFiles...)
+			assertArchiveExcludes(t, archive, prefixPaths(root, test.excludedFiles)...)
+
+			buildFile := readArchiveFile(t, archive, root+test.buildFile)
+			assertBuildDependencies(t, test.buildTool, buildFile, dependencyExpectation{present: []string{
+				"org.springframework.boot:spring-boot-starter-webmvc",
+				"org.springframework.boot:spring-boot-starter-test",
+				"org.springframework.boot:spring-boot-starter-jdbc",
+				"com.h2database:h2",
+			}})
+			if test.buildTool == "maven" {
+				assertMavenBaseline(t, buildFile, configuration)
+				assertArchiveFileMode(t, archive, root+"mvnw", 0o755)
+			} else {
+				if !strings.Contains(buildFile, springBootVersion) || !strings.Contains(buildFile, "JavaLanguageVersion.of("+javaVersion+")") {
+					t.Errorf("Gradle build does not configure Spring Boot %s and Java %s:\n%s", springBootVersion, javaVersion, buildFile)
+				}
+				settings := readArchiveFile(t, archive, root+test.settingsFile)
+				if !strings.Contains(settings, `rootProject.name = "demo"`) {
+					t.Errorf("Gradle settings do not configure the project name:\n%s", settings)
+				}
+				assertArchiveFileMode(t, archive, root+"gradlew", 0o755)
+			}
+			smokeTestGeneratedProject(t, filePath, test.buildTool)
+		})
+	}
+}
+
+func TestWrapperDirectoriesAreCopiedVerbatim(t *testing.T) {
+	tests := []struct {
+		buildTool       string
+		sourceDirectory string
+		files           []string
+	}{
+		{
+			buildTool:       "maven",
+			sourceDirectory: "generator-templates/maven-wrapper",
+			files:           []string{".mvn/wrapper/maven-wrapper.properties", "mvnw", "mvnw.cmd"},
+		},
+		{
+			buildTool:       "gradle-groovy",
+			sourceDirectory: "generator-templates/gradle-wrapper",
+			files:           []string{"gradle/wrapper/gradle-wrapper.jar", "gradle/wrapper/gradle-wrapper.properties", "gradlew", "gradlew.bat"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.buildTool, func(t *testing.T) {
+			configuration := minimalConfiguration()
+			configuration.Project.BuildTool = test.buildTool
+			_, archive := generateProjectArchive(t, configuration)
+			for _, relativePath := range test.files {
+				want, err := projectTemplateFiles.ReadFile(test.sourceDirectory + "/" + relativePath)
+				if err != nil {
+					t.Fatalf("read embedded wrapper file %q: %v", relativePath, err)
+				}
+				got := []byte(readArchiveFile(t, archive, "demo/"+relativePath))
+				if !bytes.Equal(got, want) {
+					t.Errorf("generated wrapper file %q differs from its source asset", relativePath)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildToolsHaveEquivalentDependencySemantics(t *testing.T) {
+	configuration := minimalConfiguration()
+	configuration.Frontend.Type = "thymeleaf"
+	cssFramework := "tailwind"
+	configuration.Frontend.CSSFramework = &cssFramework
+	configuration.Database.Engine = "postgresql"
+	configuration.Database.MigrationTool = "flyway"
+	configuration.Database.PersistenceFramework = "spring-data-jpa"
+	configuration.Security.Mode = "http-session"
+	configuration.Security.SpringSession = true
+	configuration.Features = []string{"email", "docker-compose", "spring-modulith", "spring-cloud-aws"}
+
+	wantScopes := make(map[string]string)
+	for _, dependency := range projectDependencies(configuration) {
+		wantScopes[dependency.Coordinate()] = dependency.GradleConfiguration()
+	}
+
+	for _, buildTool := range []string{"maven", "gradle-groovy", "gradle-kotlin"} {
+		t.Run(buildTool, func(t *testing.T) {
+			buildConfiguration := configuration
+			buildConfiguration.Project.BuildTool = buildTool
+			_, archive := generateProjectArchive(t, buildConfiguration)
+			buildFileName := map[string]string{"maven": "pom.xml", "gradle-groovy": "build.gradle", "gradle-kotlin": "build.gradle.kts"}[buildTool]
+			buildFile := readArchiveFile(t, archive, "demo/"+buildFileName)
+
+			gotScopes := extractDependencyScopes(t, buildTool, buildFile)
+			if !reflect.DeepEqual(gotScopes, wantScopes) {
+				t.Errorf("dependency scopes differ for %s:\n got: %v\nwant: %v", buildTool, gotScopes, wantScopes)
+			}
+			if buildTool == "maven" {
+				if !strings.Contains(buildFile, "<artifactId>spring-modulith-bom</artifactId>") || !strings.Contains(buildFile, "<artifactId>spring-cloud-aws-dependencies</artifactId>") || !mavenDependencyIsOptional(t, buildFile, "org.springframework.boot", "spring-boot-docker-compose") {
+					t.Errorf("Maven build is missing BOM imports or optional Docker Compose metadata:\n%s", buildFile)
+				}
+			} else {
+				for _, bom := range []string{
+					"org.springframework.boot:spring-boot-dependencies:" + springBootVersion,
+					"org.springframework.modulith:spring-modulith-bom:" + springModulithVersion,
+					"io.awspring.cloud:spring-cloud-aws-dependencies:" + springCloudAWSVersion,
+				} {
+					if !strings.Contains(buildFile, bom) {
+						t.Errorf("%s build is missing BOM %q", buildTool, bom)
+					}
+				}
+				if !strings.Contains(buildFile, "spring-boot-docker-compose") || !strings.Contains(buildFile, "optional runtime dependency") {
+					t.Errorf("%s build does not preserve Docker Compose optional/runtime intent", buildTool)
+				}
+			}
+		})
+	}
+}
+
+func prefixPaths(prefix string, paths []string) []string {
+	prefixed := make([]string, 0, len(paths))
+	for _, path := range paths {
+		prefixed = append(prefixed, prefix+path)
+	}
+	return prefixed
+}
+
+func assertArchiveExcludes(t *testing.T, archive *zip.ReadCloser, names ...string) {
+	t.Helper()
+	files := listArchiveFiles(archive)
+	for _, name := range names {
+		if slices.Contains(files, name) {
+			t.Errorf("archive unexpectedly contains %q", name)
+		}
+	}
 }
 
 func assertMavenBaseline(t *testing.T, pom string, configuration generatorConfiguration) {
@@ -489,16 +672,69 @@ func extractMavenDependencies(t *testing.T, buildFile string) []string {
 	return dependencies
 }
 
-var gradleDependencyPattern = regexp.MustCompile(`(?m)^\s*(?:implementation|runtimeOnly|compileOnly|testImplementation|testRuntimeOnly)\s*\(?\s*["']([^:"']+):([^:"']+)`)
+var gradleDependencyPattern = regexp.MustCompile(`(?m)^\s*(implementation|runtimeOnly|compileOnly|testImplementation|testRuntimeOnly)\s*\(?\s*["']([^:"']+):([^:"']+)`)
 
 func extractGradleDependencies(t *testing.T, buildFile string) []string {
 	t.Helper()
 	matches := gradleDependencyPattern.FindAllStringSubmatch(buildFile, -1)
 	dependencies := make([]string, 0, len(matches))
 	for _, match := range matches {
-		dependencies = append(dependencies, match[1]+":"+match[2])
+		dependencies = append(dependencies, match[2]+":"+match[3])
 	}
 	return dependencies
+}
+
+func extractDependencyScopes(t *testing.T, buildTool string, buildFile string) map[string]string {
+	t.Helper()
+	if buildTool != "maven" {
+		dependencies := make(map[string]string)
+		for _, match := range gradleDependencyPattern.FindAllStringSubmatch(buildFile, -1) {
+			dependencies[match[2]+":"+match[3]] = match[1]
+		}
+		return dependencies
+	}
+
+	var project struct {
+		Dependencies []struct {
+			GroupID    string `xml:"groupId"`
+			ArtifactID string `xml:"artifactId"`
+			Scope      string `xml:"scope"`
+		} `xml:"dependencies>dependency"`
+	}
+	if err := xml.Unmarshal([]byte(buildFile), &project); err != nil {
+		t.Fatalf("parse Maven dependency scopes: %v", err)
+	}
+	dependencies := make(map[string]string)
+	for _, dependency := range project.Dependencies {
+		scope := "implementation"
+		if dependency.Scope == "runtime" {
+			scope = "runtimeOnly"
+		} else if dependency.Scope == "test" {
+			scope = "testImplementation"
+		}
+		dependencies[dependency.GroupID+":"+dependency.ArtifactID] = scope
+	}
+	return dependencies
+}
+
+func mavenDependencyIsOptional(t *testing.T, pom string, groupID string, artifactID string) bool {
+	t.Helper()
+	var project struct {
+		Dependencies []struct {
+			GroupID    string `xml:"groupId"`
+			ArtifactID string `xml:"artifactId"`
+			Optional   bool   `xml:"optional"`
+		} `xml:"dependencies>dependency"`
+	}
+	if err := xml.Unmarshal([]byte(pom), &project); err != nil {
+		t.Fatalf("parse Maven optional dependencies: %v", err)
+	}
+	for _, dependency := range project.Dependencies {
+		if dependency.GroupID == groupID && dependency.ArtifactID == artifactID {
+			return dependency.Optional
+		}
+	}
+	return false
 }
 
 func smokeTestGeneratedProject(t *testing.T, archivePath string, buildTool string) {
@@ -515,7 +751,11 @@ func smokeTestGeneratedProject(t *testing.T, archivePath string, buildTool strin
 		t.Fatalf("no smoke-test command for build tool %q", buildTool)
 	}
 	if runtime.GOOS == "windows" {
-		commandLine[0] += ".cmd"
+		if buildTool == "maven" {
+			commandLine[0] += ".cmd"
+		} else {
+			commandLine[0] += ".bat"
+		}
 	}
 	if buildTool == "maven" {
 		mavenRepository := filepath.Join(os.TempDir(), "sbgen-maven-repository")
@@ -529,6 +769,13 @@ func smokeTestGeneratedProject(t *testing.T, archivePath string, buildTool strin
 	defer cancel()
 	command := exec.CommandContext(ctx, commandLine[0], commandLine[1:]...)
 	command.Dir = projectDirectory
+	if buildTool != "maven" {
+		gradleUserHome := filepath.Join(os.TempDir(), "sbgen-gradle-home")
+		if err := os.MkdirAll(gradleUserHome, 0o755); err != nil {
+			t.Fatalf("create isolated Gradle user home: %v", err)
+		}
+		command.Env = append(os.Environ(), "GRADLE_USER_HOME="+gradleUserHome)
+	}
 	output, err := command.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
 		t.Fatalf("generated project smoke test timed out after 5 minutes:\n%s", output)

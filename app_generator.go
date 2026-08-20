@@ -8,11 +8,13 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"text/template"
 )
@@ -27,10 +29,10 @@ const (
 var (
 	unsafeFilenameCharacters = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 	javaPackagePattern       = regexp.MustCompile(`^[a-zA-Z_$][a-zA-Z0-9_$]*(\.[a-zA-Z_$][a-zA-Z0-9_$]*)*$`)
-	projectTemplates         = template.Must(template.New("project-templates").Funcs(template.FuncMap{"xml": escapeXML}).ParseFS(projectTemplateFiles, "generator-templates/*.tmpl"))
+	projectTemplates         = template.Must(template.New("project-templates").Funcs(template.FuncMap{"xml": escapeXML, "quote": strconv.Quote}).ParseFS(projectTemplateFiles, "generator-templates/*.tmpl"))
 )
 
-//go:embed generator-templates/*.tmpl
+//go:embed generator-templates/*.tmpl all:generator-templates/maven-wrapper all:generator-templates/gradle-wrapper
 var projectTemplateFiles embed.FS
 
 type ConfigService struct{}
@@ -65,7 +67,34 @@ type mavenDependency struct {
 	Optional   bool
 }
 
+func (dependency mavenDependency) GradleConfiguration() string {
+	switch dependency.Scope {
+	case "runtime":
+		return "runtimeOnly"
+	case "test":
+		return "testImplementation"
+	default:
+		return "implementation"
+	}
+}
+
+func (dependency mavenDependency) Coordinate() string {
+	return dependency.GroupID + ":" + dependency.ArtifactID
+}
+
 type pomTemplateData struct {
+	GroupID               string
+	ArtifactID            string
+	SpringBootVersion     string
+	JavaVersion           string
+	SpringModulithVersion string
+	SpringCloudAWSVersion string
+	HasModulith           bool
+	HasCloudAWS           bool
+	Dependencies          []mavenDependency
+}
+
+type gradleTemplateData struct {
 	GroupID               string
 	ArtifactID            string
 	SpringBootVersion     string
@@ -85,7 +114,8 @@ type projectMetadataTemplateData struct {
 	GroupID      string
 	ArtifactID   string
 	PackageName  string
-	MavenVersion string
+	BuildCommand string
+	RunCommand   string
 }
 
 type projectFile struct {
@@ -199,10 +229,6 @@ func generateProjectZIP(downloadsDirectory string, configuration generatorConfig
 }
 
 func writeProjectArchive(archive *zip.Writer, projectDirectory string, configuration generatorConfiguration) error {
-	pomXML, err := generatePOM(configuration)
-	if err != nil {
-		return err
-	}
 	applicationJava, err := generateApplicationClass(configuration.Project.PackageName)
 	if err != nil {
 		return err
@@ -212,28 +238,22 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		return err
 	}
 	metadata := projectMetadataTemplateData{
-		GroupID:      configuration.Project.GroupID,
-		ArtifactID:   configuration.Project.ArtifactID,
-		PackageName:  configuration.Project.PackageName,
-		MavenVersion: "3.9.11",
+		GroupID:     configuration.Project.GroupID,
+		ArtifactID:  configuration.Project.ArtifactID,
+		PackageName: configuration.Project.PackageName,
+	}
+	if configuration.Project.BuildTool == "maven" {
+		metadata.BuildCommand = "./mvnw test"
+		metadata.RunCommand = "./mvnw spring-boot:run"
+	} else {
+		metadata.BuildCommand = "./gradlew test"
+		metadata.RunCommand = "./gradlew bootRun"
 	}
 	applicationProperties, err := renderProjectTemplate("application.properties.tmpl", metadata)
 	if err != nil {
 		return err
 	}
 	readme, err := renderProjectTemplate("README.md.tmpl", metadata)
-	if err != nil {
-		return err
-	}
-	mavenWrapperProperties, err := renderProjectTemplate("maven-wrapper.properties.tmpl", metadata)
-	if err != nil {
-		return err
-	}
-	mavenWrapper, err := renderProjectTemplate("mvnw.tmpl", metadata)
-	if err != nil {
-		return err
-	}
-	mavenWrapperWindows, err := renderProjectTemplate("mvnw.cmd.tmpl", metadata)
 	if err != nil {
 		return err
 	}
@@ -248,17 +268,18 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 
 	packagePath := strings.ReplaceAll(configuration.Project.PackageName, ".", "/")
 	files := []projectFile{
-		{projectDirectory + "/pom.xml", pomXML, 0o644},
 		{projectDirectory + "/src/main/java/" + packagePath + "/Application.java", applicationJava, 0o644},
 		{projectDirectory + "/src/main/resources/application.properties", applicationProperties, 0o644},
 		{projectDirectory + "/src/test/java/" + packagePath + "/ApplicationTests.java", applicationTest, 0o644},
 		{projectDirectory + "/src/test/resources/application-test.properties", testProperties, 0o644},
 		{projectDirectory + "/.gitignore", gitignore, 0o644},
 		{projectDirectory + "/README.md", readme, 0o644},
-		{projectDirectory + "/.mvn/wrapper/maven-wrapper.properties", mavenWrapperProperties, 0o644},
-		{projectDirectory + "/mvnw", mavenWrapper, 0o755},
-		{projectDirectory + "/mvnw.cmd", mavenWrapperWindows, 0o755},
 	}
+	buildFiles, err := generateBuildFiles(projectDirectory, configuration)
+	if err != nil {
+		return err
+	}
+	files = append(files, buildFiles...)
 	for _, file := range files {
 		if err := writeZIPFileMode(archive, file.Name, file.Content, file.Mode); err != nil {
 			return err
@@ -267,7 +288,112 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 	return nil
 }
 
+func generateBuildFiles(projectDirectory string, configuration generatorConfiguration) ([]projectFile, error) {
+	render := func(name string, data any) (string, error) {
+		return renderProjectTemplate(name, data)
+	}
+	if configuration.Project.BuildTool == "maven" {
+		pomXML, err := generatePOM(configuration)
+		if err != nil {
+			return nil, err
+		}
+		wrapperFiles, err := copyWrapperFiles("generator-templates/maven-wrapper", projectDirectory)
+		if err != nil {
+			return nil, err
+		}
+		return append([]projectFile{{projectDirectory + "/pom.xml", pomXML, 0o644}}, wrapperFiles...), nil
+	}
+
+	gradleData := gradleTemplateData{
+		GroupID:               configuration.Project.GroupID,
+		ArtifactID:            configuration.Project.ArtifactID,
+		SpringBootVersion:     springBootVersion,
+		JavaVersion:           javaVersion,
+		SpringModulithVersion: springModulithVersion,
+		SpringCloudAWSVersion: springCloudAWSVersion,
+		HasModulith:           contains(configuration.Features, "spring-modulith"),
+		HasCloudAWS:           contains(configuration.Features, "spring-cloud-aws"),
+		Dependencies:          projectDependencies(configuration),
+	}
+	buildTemplate := "build.gradle.tmpl"
+	settingsTemplate := "settings.gradle.tmpl"
+	buildFile := "build.gradle"
+	settingsFile := "settings.gradle"
+	if configuration.Project.BuildTool == "gradle-kotlin" {
+		buildTemplate = "build.gradle.kts.tmpl"
+		settingsTemplate = "settings.gradle.kts.tmpl"
+		buildFile = "build.gradle.kts"
+		settingsFile = "settings.gradle.kts"
+	}
+	build, err := render(buildTemplate, gradleData)
+	if err != nil {
+		return nil, err
+	}
+	settings, err := render(settingsTemplate, gradleData)
+	if err != nil {
+		return nil, err
+	}
+	wrapperFiles, err := copyWrapperFiles("generator-templates/gradle-wrapper", projectDirectory)
+	if err != nil {
+		return nil, err
+	}
+	buildFiles := []projectFile{
+		{projectDirectory + "/" + buildFile, build, 0o644},
+		{projectDirectory + "/" + settingsFile, settings, 0o644},
+	}
+	return append(buildFiles, wrapperFiles...), nil
+}
+
+func copyWrapperFiles(sourceDirectory string, projectDirectory string) ([]projectFile, error) {
+	var files []projectFile
+	err := fs.WalkDir(projectTemplateFiles, sourceDirectory, func(sourcePath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		content, err := projectTemplateFiles.ReadFile(sourcePath)
+		if err != nil {
+			return err
+		}
+		relativePath := strings.TrimPrefix(sourcePath, sourceDirectory+"/")
+		mode := os.FileMode(0o644)
+		if relativePath == "mvnw" || relativePath == "gradlew" {
+			mode = 0o755
+		}
+		files = append(files, projectFile{
+			Name:    projectDirectory + "/" + relativePath,
+			Content: string(content),
+			Mode:    mode,
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("copy wrapper files from %s: %w", sourceDirectory, err)
+	}
+	return files, nil
+}
+
 func generatePOM(configuration generatorConfiguration) (string, error) {
+	dependencies := projectDependencies(configuration)
+
+	hasModulith := contains(configuration.Features, "spring-modulith")
+	hasCloudAWS := contains(configuration.Features, "spring-cloud-aws")
+	return renderProjectTemplate("pom.xml.tmpl", pomTemplateData{
+		GroupID:               configuration.Project.GroupID,
+		ArtifactID:            configuration.Project.ArtifactID,
+		SpringBootVersion:     springBootVersion,
+		JavaVersion:           javaVersion,
+		SpringModulithVersion: springModulithVersion,
+		SpringCloudAWSVersion: springCloudAWSVersion,
+		HasModulith:           hasModulith,
+		HasCloudAWS:           hasCloudAWS,
+		Dependencies:          dependencies,
+	})
+}
+
+func projectDependencies(configuration generatorConfiguration) []mavenDependency {
 	dependencies := []mavenDependency{
 		{"org.springframework.boot", "spring-boot-starter-webmvc", "", false},
 		{"org.springframework.boot", "spring-boot-starter-test", "test", false},
@@ -315,32 +441,20 @@ func generatePOM(configuration generatorConfiguration) (string, error) {
 		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-session-jdbc", "", false})
 	}
 
-	hasModulith := contains(configuration.Features, "spring-modulith")
-	hasCloudAWS := contains(configuration.Features, "spring-cloud-aws")
 	if contains(configuration.Features, "email") {
 		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-mail", "", false})
 	}
 	if contains(configuration.Features, "docker-compose") {
 		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-docker-compose", "runtime", true})
 	}
-	if hasModulith {
+	if contains(configuration.Features, "spring-modulith") {
 		dependencies = append(dependencies, mavenDependency{"org.springframework.modulith", "spring-modulith-starter-core", "", false})
 	}
-	if hasCloudAWS {
+	if contains(configuration.Features, "spring-cloud-aws") {
 		dependencies = append(dependencies, mavenDependency{"io.awspring.cloud", "spring-cloud-aws-starter", "", false})
 	}
 
-	return renderProjectTemplate("pom.xml.tmpl", pomTemplateData{
-		GroupID:               configuration.Project.GroupID,
-		ArtifactID:            configuration.Project.ArtifactID,
-		SpringBootVersion:     springBootVersion,
-		JavaVersion:           javaVersion,
-		SpringModulithVersion: springModulithVersion,
-		SpringCloudAWSVersion: springCloudAWSVersion,
-		HasModulith:           hasModulith,
-		HasCloudAWS:           hasCloudAWS,
-		Dependencies:          dependencies,
-	})
+	return dependencies
 }
 
 func generateApplicationClass(packageName string) (string, error) {

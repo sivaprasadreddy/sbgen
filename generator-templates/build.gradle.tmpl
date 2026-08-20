@@ -1,0 +1,34 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version {{ quote .SpringBootVersion }}
+}
+
+group = {{ quote .GroupID }}
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of({{ .JavaVersion }})
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation platform('org.springframework.boot:spring-boot-dependencies:{{ .SpringBootVersion }}')
+{{- if .HasModulith }}
+    implementation platform('org.springframework.modulith:spring-modulith-bom:{{ .SpringModulithVersion }}')
+{{- end }}
+{{- if .HasCloudAWS }}
+    implementation platform('io.awspring.cloud:spring-cloud-aws-dependencies:{{ .SpringCloudAWSVersion }}')
+{{- end }}
+{{- range .Dependencies }}
+    {{ .GradleConfiguration }} {{ quote .Coordinate }}{{ if .Optional }} // optional runtime dependency{{ end }}
+{{- end }}
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
