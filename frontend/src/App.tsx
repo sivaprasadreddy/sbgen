@@ -1,9 +1,10 @@
 import { FormEvent, useState } from 'react'
 
-const steps = ['Welcome', 'Project', 'Database', 'Security', 'Features', 'Review', 'Complete']
+const steps = ['Welcome', 'Project', 'Frontend', 'Database', 'Security', 'Features', 'Review', 'Complete']
 
 type BuildTool = 'maven' | 'gradle-groovy' | 'gradle-kotlin'
-type Frontend = 'none' | 'thymeleaf-tailwind' | 'angular-tailwind'
+type Frontend = 'none' | 'thymeleaf' | 'angular'
+type CssFramework = 'tailwind' | 'bootstrap'
 type DatabaseEngine = 'postgresql' | 'mysql' | 'mariadb' | 'h2'
 type MigrationTool = 'none' | 'flyway' | 'liquibase'
 type PersistenceFramework = 'spring-data-jpa' | 'spring-jdbc-client'
@@ -22,7 +23,6 @@ type ProjectMetadata = {
   artifactId: string
   packageName: string
   buildTool: BuildTool
-  frontend: Frontend
 }
 
 const initialMetadata: ProjectMetadata = {
@@ -30,7 +30,16 @@ const initialMetadata: ProjectMetadata = {
   artifactId: 'demo',
   packageName: 'com.example.demo',
   buildTool: 'maven',
+}
+
+type FrontendConfiguration = {
+  frontend: Frontend
+  cssFramework: CssFramework
+}
+
+const initialFrontendConfiguration: FrontendConfiguration = {
   frontend: 'none',
+  cssFramework: 'tailwind',
 }
 
 type DatabaseConfiguration = {
@@ -59,6 +68,8 @@ function App() {
   const [activeStep, setActiveStep] = useState(0)
   const [metadata, setMetadata] = useState<ProjectMetadata>(initialMetadata)
   const [savedMetadata, setSavedMetadata] = useState<ProjectMetadata | null>(null)
+  const [frontend, setFrontend] = useState<FrontendConfiguration>(initialFrontendConfiguration)
+  const [savedFrontend, setSavedFrontend] = useState<FrontendConfiguration | null>(null)
   const [database, setDatabase] = useState<DatabaseConfiguration>(initialDatabaseConfiguration)
   const [savedDatabase, setSavedDatabase] = useState<DatabaseConfiguration | null>(null)
   const [security, setSecurity] = useState<SecurityConfiguration>(initialSecurityConfiguration)
@@ -73,15 +84,21 @@ function App() {
   const handleProjectSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavedMetadata({ ...metadata })
+    setActiveStep(2)
+  }
+
+  const handleFrontendSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSavedFrontend({ ...frontend })
     setSecurity((current) => ({
-      mode: metadata.frontend === 'thymeleaf-tailwind' && current.mode === 'http-session'
+      mode: frontend.frontend === 'thymeleaf' && current.mode === 'http-session'
         ? current.mode
-        : metadata.frontend === 'angular-tailwind' && current.mode === 'oauth-resource-server'
+        : frontend.frontend === 'angular' && current.mode === 'oauth-resource-server'
           ? current.mode
           : 'none',
-      springSession: metadata.frontend === 'thymeleaf-tailwind' && current.springSession,
+      springSession: frontend.frontend === 'thymeleaf' && current.springSession,
     }))
-    setActiveStep(2)
+    setActiveStep(3)
   }
 
   const updateDatabase = <K extends keyof DatabaseConfiguration>(field: K, value: DatabaseConfiguration[K]) => {
@@ -91,13 +108,13 @@ function App() {
   const handleDatabaseSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavedDatabase({ ...database })
-    setActiveStep(3)
+    setActiveStep(4)
   }
 
   const handleSecuritySubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavedSecurity({ ...security })
-    setActiveStep(4)
+    setActiveStep(5)
   }
 
   const toggleFeature = (feature: Feature) => {
@@ -109,7 +126,7 @@ function App() {
   const handleFeaturesSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavedFeatures([...features])
-    setActiveStep(5)
+    setActiveStep(6)
   }
 
   return (
@@ -143,9 +160,9 @@ function App() {
         {activeStep === 1 && (
           <form className="project-form" onSubmit={handleProjectSubmit}>
             <div className="form-heading">
-              <p className="eyebrow">Step 2 of 7</p>
+              <p className="eyebrow">Step 2 of 8</p>
               <h1>Project Metadata</h1>
-              <p>Define the coordinates, build system, and frontend for your new Spring Boot application.</p>
+              <p>Define the coordinates and build system for your new Spring Boot application.</p>
             </div>
 
             <div className="field-grid">
@@ -182,22 +199,6 @@ function App() {
               </div>
             </fieldset>
 
-            <fieldset className="build-tool frontend-choice">
-              <legend>Frontend</legend>
-              <div className="build-options">
-                {([
-                  ['none', 'None', 'Backend only'],
-                  ['thymeleaf-tailwind', 'Thymeleaf + TailwindCSS', 'Server-rendered UI'],
-                  ['angular-tailwind', 'Angular + TailwindCSS', 'Single-page application'],
-                ] as const).map(([value, label, description]) => (
-                  <label className={metadata.frontend === value ? 'selected' : ''} key={value}>
-                    <input type="radio" name="frontend" value={value} checked={metadata.frontend === value} onChange={() => updateMetadata('frontend', value)} />
-                    <span><strong>{label}</strong><small>{description}</small></span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
             <div className="form-actions">
               <button type="button" className="back-button" onClick={() => setActiveStep(0)}>Back</button>
               <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
@@ -206,9 +207,57 @@ function App() {
         )}
 
         {activeStep === 2 && savedMetadata && (
+          <form className="project-form frontend-form" onSubmit={handleFrontendSubmit}>
+            <div className="form-heading">
+              <p className="eyebrow">Step 3 of 8</p>
+              <h1>Frontend</h1>
+              <p>Choose how the user interface for <strong>{savedMetadata.artifactId}</strong> should be built.</p>
+            </div>
+
+            <fieldset className="build-tool first-option-group">
+              <legend>Frontend</legend>
+              <div className="build-options">
+                {([
+                  ['none', 'None', 'Backend only'],
+                  ['thymeleaf', 'Thymeleaf', 'Server-rendered web application'],
+                  ['angular', 'Angular', 'Single-page web application'],
+                ] as const).map(([value, label, description]) => (
+                  <label className={frontend.frontend === value ? 'selected' : ''} key={value}>
+                    <input type="radio" name="frontend" value={value} checked={frontend.frontend === value} onChange={() => setFrontend((current) => ({ ...current, frontend: value }))} />
+                    <span><strong>{label}</strong><small>{description}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {frontend.frontend !== 'none' && (
+              <fieldset className="build-tool">
+                <legend>CSS Framework</legend>
+                <div className="build-options database-options">
+                  {([
+                    ['tailwind', 'Tailwind CSS', 'Utility-first CSS framework'],
+                    ['bootstrap', 'Bootstrap CSS', 'Component-based CSS framework'],
+                  ] as const).map(([value, label, description]) => (
+                    <label className={frontend.cssFramework === value ? 'selected' : ''} key={value}>
+                      <input type="radio" name="cssFramework" value={value} checked={frontend.cssFramework === value} onChange={() => setFrontend((current) => ({ ...current, cssFramework: value }))} />
+                      <span><strong>{label}</strong><small>{description}</small></span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+
+            <div className="form-actions">
+              <button type="button" className="back-button" onClick={() => setActiveStep(1)}>Back</button>
+              <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
+            </div>
+          </form>
+        )}
+
+        {activeStep === 3 && savedMetadata && savedFrontend && (
           <form className="project-form database-form" onSubmit={handleDatabaseSubmit}>
             <div className="form-heading">
-              <p className="eyebrow">Step 3 of 7</p>
+              <p className="eyebrow">Step 4 of 8</p>
               <h1>Database</h1>
               <p>Choose the database, persistence framework, and schema migration tool for <strong>{savedMetadata.artifactId}</strong>.</p>
             </div>
@@ -262,16 +311,16 @@ function App() {
             </fieldset>
 
             <div className="form-actions">
-              <button type="button" className="back-button" onClick={() => setActiveStep(1)}>Back</button>
+              <button type="button" className="back-button" onClick={() => setActiveStep(2)}>Back</button>
               <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
             </div>
           </form>
         )}
 
-        {activeStep === 3 && savedDatabase && savedMetadata && (
+        {activeStep === 4 && savedDatabase && savedFrontend && (
           <form className="project-form security-form" onSubmit={handleSecuritySubmit}>
             <div className="form-heading">
-              <p className="eyebrow">Step 4 of 7</p>
+              <p className="eyebrow">Step 5 of 8</p>
               <h1>Security</h1>
               <p>Choose the security model that fits your selected frontend.</p>
             </div>
@@ -284,14 +333,14 @@ function App() {
                   <span><strong>None</strong><small>Do not configure application security</small></span>
                 </label>
 
-                {savedMetadata.frontend === 'thymeleaf-tailwind' && (
+                {savedFrontend.frontend === 'thymeleaf' && (
                   <label className={security.mode === 'http-session' ? 'selected' : ''}>
                     <input type="radio" name="securityMode" value="http-session" checked={security.mode === 'http-session'} onChange={() => setSecurity((current) => ({ ...current, mode: 'http-session' }))} />
                     <span><strong>HTTP Session based Security</strong><small>Session-backed authentication for server-rendered pages</small></span>
                   </label>
                 )}
 
-                {savedMetadata.frontend === 'angular-tailwind' && (
+                {savedFrontend.frontend === 'angular' && (
                   <label className={security.mode === 'oauth-resource-server' ? 'selected' : ''}>
                     <input type="radio" name="securityMode" value="oauth-resource-server" checked={security.mode === 'oauth-resource-server'} onChange={() => setSecurity({ mode: 'oauth-resource-server', springSession: false })} />
                     <span><strong>OAuth Resource Server</strong><small>Token-based API security for the Angular application</small></span>
@@ -300,7 +349,7 @@ function App() {
               </div>
             </fieldset>
 
-            {savedMetadata.frontend === 'thymeleaf-tailwind' && security.mode === 'http-session' && (
+            {savedFrontend.frontend === 'thymeleaf' && security.mode === 'http-session' && (
               <label className={security.springSession ? 'session-option selected' : 'session-option'}>
                 <input type="checkbox" checked={security.springSession} onChange={(event) => setSecurity((current) => ({ ...current, springSession: event.target.checked }))} />
                 <span><strong>Spring Session</strong><small>Opt in to persistent, shared HTTP session management.</small></span>
@@ -308,16 +357,16 @@ function App() {
             )}
 
             <div className="form-actions">
-              <button type="button" className="back-button" onClick={() => setActiveStep(2)}>Back</button>
+              <button type="button" className="back-button" onClick={() => setActiveStep(3)}>Back</button>
               <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
             </div>
           </form>
         )}
 
-        {activeStep === 4 && savedSecurity && (
+        {activeStep === 5 && savedSecurity && (
           <form className="project-form features-form" onSubmit={handleFeaturesSubmit}>
             <div className="form-heading">
-              <p className="eyebrow">Step 5 of 7</p>
+              <p className="eyebrow">Step 6 of 8</p>
               <h1>Features</h1>
               <p>Select any additional capabilities to include in your generated application.</p>
             </div>
@@ -338,19 +387,19 @@ function App() {
             </fieldset>
 
             <div className="form-actions">
-              <button type="button" className="back-button" onClick={() => setActiveStep(3)}>Back</button>
+              <button type="button" className="back-button" onClick={() => setActiveStep(4)}>Back</button>
               <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
             </div>
           </form>
         )}
 
-        {activeStep === 5 && savedFeatures && (
+        {activeStep === 6 && savedFeatures && (
           <div className="next-step-placeholder">
             <div className="welcome-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7 16.5 13 22l12-13" /></svg></div>
             <p className="eyebrow">Features saved</p>
             <h1>Review</h1>
             <p className="description">{savedFeatures.length === 0 ? 'No optional features selected.' : `${savedFeatures.length} optional feature${savedFeatures.length === 1 ? '' : 's'} selected.`} Your project is ready to review.</p>
-            <button type="button" className="back-button" onClick={() => setActiveStep(4)}>Back to features</button>
+            <button type="button" className="back-button" onClick={() => setActiveStep(5)}>Back to features</button>
           </div>
         )}
       </section>

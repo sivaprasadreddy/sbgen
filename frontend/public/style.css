@@ -41,8 +41,8 @@ h1 { margin: 0; color: #171828; font-size: clamp(27px,3.1vw,42px); line-height: 
 .field input:focus { border-color: #ef5660; box-shadow: 0 0 0 3px rgba(239,62,72,.1); }
 .field small { color: #9295a4; font-size: 9px; font-weight: 500; }
 .build-tool { margin: 25px 0 0; padding: 0; border: 0; }
-.frontend-choice { margin-top: 20px; }
 .first-option-group { margin-top: 0; }
+.frontend-form { max-width: 680px; }
 .database-form { max-width: 720px; }
 .security-form { max-width: 680px; }
 .features-form { max-width: 680px; }
