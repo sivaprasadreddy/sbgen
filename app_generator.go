@@ -29,10 +29,10 @@ const (
 var (
 	unsafeFilenameCharacters = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 	javaPackagePattern       = regexp.MustCompile(`^[a-zA-Z_$][a-zA-Z0-9_$]*(\.[a-zA-Z_$][a-zA-Z0-9_$]*)*$`)
-	projectTemplates         = template.Must(template.New("project-templates").Funcs(template.FuncMap{"xml": escapeXML, "quote": strconv.Quote}).ParseFS(projectTemplateFiles, "generator-templates/*.tmpl"))
+	projectTemplates         = parseProjectTemplates()
 )
 
-//go:embed generator-templates/*.tmpl all:generator-templates/maven-wrapper all:generator-templates/gradle-wrapper
+//go:embed all:generator-templates
 var projectTemplateFiles embed.FS
 
 type ConfigService struct{}
@@ -138,6 +138,9 @@ type securityTemplateData struct {
 
 type composeTemplateData struct {
 	DatabaseName string
+	PostgreSQL   bool
+	MySQL        bool
+	MariaDB      bool
 }
 
 type projectFile struct {
@@ -252,7 +255,7 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 	if err != nil {
 		return err
 	}
-	applicationTest, err := renderProjectTemplate("ApplicationTests.java.tmpl", applicationTemplateData{PackageName: configuration.Project.PackageName})
+	applicationTest, err := renderProjectTemplate("src/test/java/ApplicationTests.java.tmpl", applicationTemplateData{PackageName: configuration.Project.PackageName})
 	if err != nil {
 		return err
 	}
@@ -275,7 +278,7 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		metadata.BuildCommand = "./gradlew test"
 		metadata.RunCommand = "./gradlew bootRun"
 	}
-	applicationProperties, err := renderProjectTemplate("application.properties.tmpl", metadata)
+	applicationProperties, err := renderProjectTemplate("src/main/resources/application.properties.tmpl", metadata)
 	if err != nil {
 		return err
 	}
@@ -283,11 +286,11 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 	if err != nil {
 		return err
 	}
-	gitignore, err := renderProjectTemplate("gitignore.tmpl", nil)
+	gitignore, err := renderProjectTemplate(".gitignore.tmpl", nil)
 	if err != nil {
 		return err
 	}
-	testProperties, err := renderProjectTemplate("application-test.properties.tmpl", nil)
+	testProperties, err := renderProjectTemplate("src/test/resources/application-test.properties.tmpl", nil)
 	if err != nil {
 		return err
 	}
@@ -332,14 +335,19 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 func generateOptionalFeatureFiles(projectDirectory string, packagePath string, configuration generatorConfiguration) ([]projectFile, error) {
 	var files []projectFile
 	if contains(configuration.Features, "docker-compose") && configuration.Database.Engine != "h2" {
-		compose, err := renderProjectTemplate("compose-"+configuration.Database.Engine+".yaml.tmpl", composeTemplateData{DatabaseName: sanitizeArtifactID(configuration.Project.ArtifactID)})
+		compose, err := renderProjectTemplate("compose.yaml.tmpl", composeTemplateData{
+			DatabaseName: sanitizeArtifactID(configuration.Project.ArtifactID),
+			PostgreSQL:   configuration.Database.Engine == "postgresql",
+			MySQL:        configuration.Database.Engine == "mysql",
+			MariaDB:      configuration.Database.Engine == "mariadb",
+		})
 		if err != nil {
 			return nil, err
 		}
 		files = append(files, projectFile{projectDirectory + "/compose.yaml", compose, 0o644})
 	}
 	if contains(configuration.Features, "spring-modulith") {
-		verificationTest, err := renderProjectTemplate("ModularityTests.java.tmpl", applicationTemplateData{PackageName: configuration.Project.PackageName})
+		verificationTest, err := renderProjectTemplate("src/test/java/ModularityTests.java.tmpl", applicationTemplateData{PackageName: configuration.Project.PackageName})
 		if err != nil {
 			return nil, err
 		}
@@ -357,19 +365,19 @@ func generateSecurityFiles(projectDirectory string, packagePath string, configur
 		PublicPath:    "/public",
 		ProtectedPath: "/protected",
 	}
-	configurationTemplate := "FormLoginSecurityConfig.java.tmpl"
-	testTemplate := "FormLoginSecurityEndpointsTests.java.tmpl"
+	configurationTemplate := "src/main/java/config/FormLoginSecurityConfig.java.tmpl"
+	testTemplate := "src/test/java/web/FormLoginSecurityEndpointsTests.java.tmpl"
 	if configuration.Security.Mode == "oauth-resource-server" {
 		data.PublicPath = "/api/public"
 		data.ProtectedPath = "/api/protected"
-		configurationTemplate = "OAuthResourceServerSecurityConfig.java.tmpl"
-		testTemplate = "OAuthSecurityEndpointsTests.java.tmpl"
+		configurationTemplate = "src/main/java/config/OAuthResourceServerSecurityConfig.java.tmpl"
+		testTemplate = "src/test/java/web/OAuthSecurityEndpointsTests.java.tmpl"
 	}
 	securityConfiguration, err := renderProjectTemplate(configurationTemplate, data)
 	if err != nil {
 		return nil, err
 	}
-	endpoints, err := renderProjectTemplate("SecurityEndpoints.java.tmpl", data)
+	endpoints, err := renderProjectTemplate("src/main/java/web/SecurityEndpoints.java.tmpl", data)
 	if err != nil {
 		return nil, err
 	}
@@ -391,13 +399,13 @@ func generateMigrationFiles(projectDirectory string, configuration generatorConf
 		if configuration.Database.Engine == "mysql" || configuration.Database.Engine == "mariadb" {
 			identityClause = "AUTO_INCREMENT"
 		}
-		migration, err := renderProjectTemplate("V1__create_catalog_items.sql.tmpl", migrationTemplateData{IdentityClause: identityClause})
+		migration, err := renderProjectTemplate("src/main/resources/db/migration/V1__create_catalog_items.sql.tmpl", migrationTemplateData{IdentityClause: identityClause})
 		if err != nil {
 			return nil, err
 		}
 		return []projectFile{{projectDirectory + "/src/main/resources/db/migration/V1__create_catalog_items.sql", migration, 0o644}}, nil
 	case "liquibase":
-		changelog, err := renderProjectTemplate("db.changelog-master.xml.tmpl", nil)
+		changelog, err := renderProjectTemplate("src/main/resources/db/changelog/db.changelog-master.xml.tmpl", nil)
 		if err != nil {
 			return nil, err
 		}
@@ -591,7 +599,27 @@ func projectDependencies(configuration generatorConfiguration) []mavenDependency
 }
 
 func generateApplicationClass(packageName string) (string, error) {
-	return renderProjectTemplate("Application.java.tmpl", applicationTemplateData{PackageName: packageName})
+	return renderProjectTemplate("src/main/java/Application.java.tmpl", applicationTemplateData{PackageName: packageName})
+}
+
+func parseProjectTemplates() *template.Template {
+	templates := template.New("project-templates").Funcs(template.FuncMap{"xml": escapeXML, "quote": strconv.Quote})
+	err := fs.WalkDir(projectTemplateFiles, "generator-templates", func(name string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(name, ".tmpl") {
+			return nil
+		}
+		content, err := projectTemplateFiles.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		templateName := strings.TrimPrefix(name, "generator-templates/")
+		_, err = templates.New(templateName).Parse(string(content))
+		return err
+	})
+	return template.Must(templates, err)
 }
 
 func renderProjectTemplate(name string, data any) (string, error) {
