@@ -143,6 +143,14 @@ type composeTemplateData struct {
 	MariaDB      bool
 }
 
+type projectSupportTemplateData struct {
+	ArtifactID    string
+	JavaVersion   string
+	Maven         bool
+	Gradle        bool
+	DockerCompose bool
+}
+
 type projectFile struct {
 	Name    string
 	Content string
@@ -319,6 +327,11 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		return err
 	}
 	files = append(files, optionalFeatureFiles...)
+	projectSupportFiles, err := generateProjectSupportFiles(projectDirectory, configuration)
+	if err != nil {
+		return err
+	}
+	files = append(files, projectSupportFiles...)
 	buildFiles, err := generateBuildFiles(projectDirectory, configuration)
 	if err != nil {
 		return err
@@ -330,6 +343,34 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		}
 	}
 	return nil
+}
+
+func generateProjectSupportFiles(projectDirectory string, configuration generatorConfiguration) ([]projectFile, error) {
+	data := projectSupportTemplateData{
+		ArtifactID:    configuration.Project.ArtifactID,
+		JavaVersion:   javaVersion,
+		Maven:         configuration.Project.BuildTool == "maven",
+		Gradle:        configuration.Project.BuildTool != "maven",
+		DockerCompose: contains(configuration.Features, "docker-compose") && configuration.Database.Engine != "h2",
+	}
+	templates := []struct {
+		template string
+		target   string
+	}{
+		{".github/workflows/ci.yml.tmpl", "/.github/workflows/ci.yml"},
+		{"renovate.json.tmpl", "/renovate.json"},
+		{"Taskfile.yml.tmpl", "/Taskfile.yml"},
+		{".sdkmanrc.tmpl", "/.sdkmanrc"},
+	}
+	files := make([]projectFile, 0, len(templates))
+	for _, file := range templates {
+		content, err := renderProjectTemplate(file.template, data)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, projectFile{projectDirectory + file.target, content, 0o644})
+	}
+	return files, nil
 }
 
 func generateOptionalFeatureFiles(projectDirectory string, packagePath string, configuration generatorConfiguration) ([]projectFile, error) {

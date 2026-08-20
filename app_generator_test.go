@@ -210,6 +210,68 @@ func TestGeneratedBuildTools(t *testing.T) {
 	}
 }
 
+func TestGeneratedProjectSupportFiles(t *testing.T) {
+	tests := []struct {
+		buildTool     string
+		wrapper       string
+		cache         string
+		sdk           string
+		absentWrapper string
+		absentSDK     string
+	}{
+		{"maven", "./mvnw", "cache: maven", "maven=3.9.16", "./gradlew", "gradle="},
+		{"gradle-groovy", "./gradlew", "cache: gradle", "gradle=9.7.0", "./mvnw", "maven="},
+		{"gradle-kotlin", "./gradlew", "cache: gradle", "gradle=9.7.0", "./mvnw", "maven="},
+	}
+	for _, test := range tests {
+		t.Run(test.buildTool, func(t *testing.T) {
+			configuration := minimalConfiguration()
+			configuration.Project.BuildTool = test.buildTool
+			_, archive := generateProjectArchive(t, configuration)
+			assertArchiveContains(t, archive,
+				"demo/.github/workflows/ci.yml",
+				"demo/renovate.json",
+				"demo/Taskfile.yml",
+				"demo/.sdkmanrc",
+			)
+
+			workflow := readArchiveFile(t, archive, "demo/.github/workflows/ci.yml")
+			if !strings.Contains(workflow, test.cache) || !strings.Contains(workflow, test.wrapper) || strings.Contains(workflow, test.absentWrapper) {
+				t.Errorf("GitHub Actions workflow does not match %s:\n%s", test.buildTool, workflow)
+			}
+			taskfile := readArchiveFile(t, archive, "demo/Taskfile.yml")
+			if !strings.Contains(taskfile, test.wrapper) || strings.Contains(taskfile, test.absentWrapper) || strings.Contains(taskfile, "docker compose") {
+				t.Errorf("Taskfile does not match %s without Docker Compose:\n%s", test.buildTool, taskfile)
+			}
+			sdkmanrc := readArchiveFile(t, archive, "demo/.sdkmanrc")
+			if !strings.Contains(sdkmanrc, "java="+javaVersion+"-tem") || !strings.Contains(sdkmanrc, test.sdk) || strings.Contains(sdkmanrc, test.absentSDK) {
+				t.Errorf(".sdkmanrc does not match %s:\n%s", test.buildTool, sdkmanrc)
+			}
+
+			var renovate map[string]any
+			if err := json.Unmarshal([]byte(readArchiveFile(t, archive, "demo/renovate.json")), &renovate); err != nil {
+				t.Fatalf("generated renovate.json is invalid: %v", err)
+			}
+			if renovate["$schema"] != "https://docs.renovatebot.com/renovate-schema.json" {
+				t.Errorf("generated renovate.json has unexpected schema: %v", renovate["$schema"])
+			}
+		})
+	}
+
+	t.Run("Docker Compose tasks", func(t *testing.T) {
+		configuration := minimalConfiguration()
+		configuration.Database.Engine = "postgresql"
+		configuration.Features = []string{"docker-compose"}
+		_, archive := generateProjectArchive(t, configuration)
+		taskfile := readArchiveFile(t, archive, "demo/Taskfile.yml")
+		for _, command := range []string{"docker compose -f compose.yaml up", "docker compose -f compose.yaml stop", "docker compose -f compose.yaml rm -f"} {
+			if !strings.Contains(taskfile, command) {
+				t.Errorf("Docker Compose Taskfile is missing %q:\n%s", command, taskfile)
+			}
+		}
+	})
+}
+
 func TestWrapperDirectoriesAreCopiedVerbatim(t *testing.T) {
 	tests := []struct {
 		buildTool       string

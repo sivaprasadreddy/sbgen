@@ -1,0 +1,43 @@
+version: '3'
+
+vars:
+  IMAGE_NAME: 'your_dockerhub_username/{{ .ArtifactID }}'
+
+tasks:
+  default:
+    cmds:
+      - task: test
+
+  test:
+    cmds:
+{{ if .Maven }}
+      - ./mvnw clean verify
+{{ end }}
+{{ if .Gradle }}
+      - ./gradlew build
+{{ end }}
+
+  build_image:
+    cmds:
+{{ if .Maven }}
+      - ./mvnw clean compile spring-boot:build-image -DskipTests -Dspring-boot.build-image.imageName=your_dockerhub_username/{{ .ArtifactID }}
+{{ end }}
+{{ if .Gradle }}
+      - ./gradlew -x test bootBuildImage --imageName=your_dockerhub_username/{{ .ArtifactID }}
+{{ end }}
+{{ if .DockerCompose }}
+
+  start:
+    cmds:
+      - docker compose -f compose.yaml up --force-recreate -d
+
+  stop:
+    cmds:
+      - docker compose -f compose.yaml stop
+      - docker compose -f compose.yaml rm -f
+
+  restart:
+    cmds:
+      - task: stop
+      - task: start
+{{ end }}
