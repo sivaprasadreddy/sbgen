@@ -24,6 +24,12 @@ const (
 	javaVersion           = "25"
 	springModulithVersion = "2.1.0"
 	springCloudAWSVersion = "4.0.0"
+	spotlessGradleVersion = "8.9.0"
+	spotlessMavenVersion  = "3.9.0"
+	gradleGitPropsVersion = "4.0.1"
+	palantirFormatVersion = "2.96.0"
+	jacocoVersion         = "0.8.15"
+	gitCommitIDVersion    = "9.0.2"
 )
 
 var (
@@ -91,6 +97,10 @@ type pomTemplateData struct {
 	HasModulith           bool
 	HasCloudAWS           bool
 	Dependencies          []mavenDependency
+	SpotlessVersion       string
+	PalantirFormatVersion string
+	JacocoVersion         string
+	GitCommitIDVersion    string
 }
 
 type gradleTemplateData struct {
@@ -103,6 +113,10 @@ type gradleTemplateData struct {
 	HasModulith           bool
 	HasCloudAWS           bool
 	Dependencies          []mavenDependency
+	SpotlessVersion       string
+	PalantirFormatVersion string
+	JacocoVersion         string
+	GitPropertiesVersion  string
 }
 
 type applicationTemplateData struct {
@@ -497,6 +511,10 @@ func generateBuildFiles(projectDirectory string, configuration generatorConfigur
 		HasModulith:           contains(configuration.Features, "spring-modulith"),
 		HasCloudAWS:           contains(configuration.Features, "spring-cloud-aws"),
 		Dependencies:          projectDependencies(configuration),
+		SpotlessVersion:       spotlessGradleVersion,
+		PalantirFormatVersion: palantirFormatVersion,
+		JacocoVersion:         jacocoVersion,
+		GitPropertiesVersion:  gradleGitPropsVersion,
 	}
 	buildTemplate := "build.gradle.tmpl"
 	settingsTemplate := "settings.gradle.tmpl"
@@ -573,6 +591,10 @@ func generatePOM(configuration generatorConfiguration) (string, error) {
 		HasModulith:           hasModulith,
 		HasCloudAWS:           hasCloudAWS,
 		Dependencies:          dependencies,
+		SpotlessVersion:       spotlessMavenVersion,
+		PalantirFormatVersion: palantirFormatVersion,
+		JacocoVersion:         jacocoVersion,
+		GitCommitIDVersion:    gitCommitIDVersion,
 	})
 }
 

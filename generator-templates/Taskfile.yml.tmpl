@@ -9,12 +9,22 @@ tasks:
       - task: test
 
   test:
+    deps: [format]
     cmds:
 {{ if .Maven }}
       - ./mvnw clean verify
 {{ end }}
 {{ if .Gradle }}
       - ./gradlew build
+{{ end }}
+
+  format:
+    cmds:
+{{ if .Maven }}
+      - ./mvnw spotless:apply
+{{ end }}
+{{ if .Gradle }}
+      - ./gradlew spotlessApply
 {{ end }}
 
   build_image:

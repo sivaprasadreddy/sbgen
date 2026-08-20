@@ -1,6 +1,9 @@
 plugins {
     java
+    jacoco
     id("org.springframework.boot") version {{ quote .SpringBootVersion }}
+    id("com.gorylenko.gradle-git-properties") version {{ quote .GitPropertiesVersion }}
+    id("com.diffplug.spotless") version {{ quote .SpotlessVersion }}
 }
 
 group = {{ quote .GroupID }}
@@ -31,4 +34,32 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+jacoco {
+    toolVersion = {{ quote .JacocoVersion }}
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+}
+
+gitProperties {
+    failOnNoGitDirectory = false
+    keys = listOf("git.branch", "git.commit.id.abbrev", "git.commit.user.name", "git.commit.message.full")
+}
+
+spotless {
+    java {
+        importOrder()
+        removeUnusedImports()
+        palantirJavaFormat({{ quote .PalantirFormatVersion }})
+        formatAnnotations()
+    }
 }

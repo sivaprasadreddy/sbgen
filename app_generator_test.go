@@ -193,9 +193,29 @@ func TestGeneratedBuildTools(t *testing.T) {
 				"com.h2database:h2",
 			}})
 			if test.buildTool == "maven" {
+				for _, plugin := range []string{"spotless-maven-plugin", "jacoco-maven-plugin", "git-commit-id-maven-plugin"} {
+					if strings.Count(buildFile, "<artifactId>"+plugin+"</artifactId>") != 1 {
+						t.Errorf("Maven build does not configure %s exactly once:\n%s", plugin, buildFile)
+					}
+				}
+				for _, version := range []string{spotlessMavenVersion, palantirFormatVersion, jacocoVersion, gitCommitIDVersion} {
+					if !strings.Contains(buildFile, version) {
+						t.Errorf("Maven build does not contain plugin version %s:\n%s", version, buildFile)
+					}
+				}
 				assertMavenBaseline(t, buildFile, configuration)
 				assertArchiveFileMode(t, archive, root+"mvnw", 0o755)
 			} else {
+				for _, plugin := range []string{"com.diffplug.spotless", "com.gorylenko.gradle-git-properties", "jacocoTestReport", "palantirJavaFormat"} {
+					if !strings.Contains(buildFile, plugin) {
+						t.Errorf("Gradle build does not configure %s:\n%s", plugin, buildFile)
+					}
+				}
+				for _, version := range []string{spotlessGradleVersion, palantirFormatVersion, jacocoVersion, gradleGitPropsVersion} {
+					if !strings.Contains(buildFile, version) {
+						t.Errorf("Gradle build does not contain plugin version %s:\n%s", version, buildFile)
+					}
+				}
 				if !strings.Contains(buildFile, springBootVersion) || !strings.Contains(buildFile, "JavaLanguageVersion.of("+javaVersion+")") {
 					t.Errorf("Gradle build does not configure Spring Boot %s and Java %s:\n%s", springBootVersion, javaVersion, buildFile)
 				}
