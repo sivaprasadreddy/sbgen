@@ -1,9 +1,13 @@
 import { FormEvent, useState } from 'react'
 
-const steps = ['Welcome', 'Project', 'Dependencies', 'Configuration', 'Features', 'Review', 'Complete']
+const steps = ['Welcome', 'Project', 'Database', 'Security', 'Features', 'Review', 'Complete']
 
 type BuildTool = 'maven' | 'gradle-groovy' | 'gradle-kotlin'
 type Frontend = 'none' | 'thymeleaf-tailwind' | 'angular-tailwind'
+type DatabaseEngine = 'postgresql' | 'mysql' | 'mariadb' | 'h2'
+type MigrationTool = 'none' | 'flyway' | 'liquibase'
+type PersistenceFramework = 'spring-data-jpa' | 'spring-jdbc-client'
+type SecurityMode = 'none' | 'http-session' | 'oauth-resource-server'
 
 type ProjectMetadata = {
   groupId: string
@@ -21,10 +25,36 @@ const initialMetadata: ProjectMetadata = {
   frontend: 'none',
 }
 
+type DatabaseConfiguration = {
+  engine: DatabaseEngine
+  migrationTool: MigrationTool
+  persistenceFramework: PersistenceFramework
+}
+
+const initialDatabaseConfiguration: DatabaseConfiguration = {
+  engine: 'postgresql',
+  migrationTool: 'flyway',
+  persistenceFramework: 'spring-data-jpa',
+}
+
+type SecurityConfiguration = {
+  mode: SecurityMode
+  springSession: boolean
+}
+
+const initialSecurityConfiguration: SecurityConfiguration = {
+  mode: 'none',
+  springSession: false,
+}
+
 function App() {
   const [activeStep, setActiveStep] = useState(0)
   const [metadata, setMetadata] = useState<ProjectMetadata>(initialMetadata)
   const [savedMetadata, setSavedMetadata] = useState<ProjectMetadata | null>(null)
+  const [database, setDatabase] = useState<DatabaseConfiguration>(initialDatabaseConfiguration)
+  const [savedDatabase, setSavedDatabase] = useState<DatabaseConfiguration | null>(null)
+  const [security, setSecurity] = useState<SecurityConfiguration>(initialSecurityConfiguration)
+  const [savedSecurity, setSavedSecurity] = useState<SecurityConfiguration | null>(null)
 
   const updateMetadata = <K extends keyof ProjectMetadata>(field: K, value: ProjectMetadata[K]) => {
     setMetadata((current) => ({ ...current, [field]: value }))
@@ -33,7 +63,31 @@ function App() {
   const handleProjectSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavedMetadata({ ...metadata })
+    setSecurity((current) => ({
+      mode: metadata.frontend === 'thymeleaf-tailwind' && current.mode === 'http-session'
+        ? current.mode
+        : metadata.frontend === 'angular-tailwind' && current.mode === 'oauth-resource-server'
+          ? current.mode
+          : 'none',
+      springSession: metadata.frontend === 'thymeleaf-tailwind' && current.springSession,
+    }))
     setActiveStep(2)
+  }
+
+  const updateDatabase = <K extends keyof DatabaseConfiguration>(field: K, value: DatabaseConfiguration[K]) => {
+    setDatabase((current) => ({ ...current, [field]: value }))
+  }
+
+  const handleDatabaseSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSavedDatabase({ ...database })
+    setActiveStep(3)
+  }
+
+  const handleSecuritySubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSavedSecurity({ ...security })
+    setActiveStep(4)
   }
 
   return (
@@ -130,12 +184,121 @@ function App() {
         )}
 
         {activeStep === 2 && savedMetadata && (
+          <form className="project-form database-form" onSubmit={handleDatabaseSubmit}>
+            <div className="form-heading">
+              <p className="eyebrow">Step 3 of 7</p>
+              <h1>Database</h1>
+              <p>Choose the database, persistence framework, and schema migration tool for <strong>{savedMetadata.artifactId}</strong>.</p>
+            </div>
+
+            <fieldset className="build-tool first-option-group">
+              <legend>Database</legend>
+              <div className="build-options database-options">
+                {([
+                  ['postgresql', 'PostgreSQL', 'Reliable, advanced SQL database'],
+                  ['mysql', 'MySQL', 'Popular open-source SQL database'],
+                  ['mariadb', 'MariaDB', 'Community-developed MySQL alternative'],
+                  ['h2', 'H2', 'Lightweight in-memory SQL database'],
+                ] as const).map(([value, label, description]) => (
+                  <label className={database.engine === value ? 'selected' : ''} key={value}>
+                    <input type="radio" name="database" value={value} checked={database.engine === value} onChange={() => updateDatabase('engine', value)} />
+                    <span><strong>{label}</strong><small>{description}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="build-tool">
+              <legend>Persistence Framework</legend>
+              <div className="build-options database-options">
+                {([
+                  ['spring-data-jpa', 'Spring Data JPA', 'Repository-based persistence with JPA'],
+                  ['spring-jdbc-client', 'Spring JdbcClient', 'Fluent SQL-oriented data access'],
+                ] as const).map(([value, label, description]) => (
+                  <label className={database.persistenceFramework === value ? 'selected' : ''} key={value}>
+                    <input type="radio" name="persistenceFramework" value={value} checked={database.persistenceFramework === value} onChange={() => updateDatabase('persistenceFramework', value)} />
+                    <span><strong>{label}</strong><small>{description}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="build-tool">
+              <legend>Database Migration Tool</legend>
+              <div className="build-options">
+                {([
+                  ['none', 'None', 'No migration tool'],
+                  ['flyway', 'Flyway', 'Versioned SQL migrations'],
+                  ['liquibase', 'Liquibase', 'Flexible database change tracking'],
+                ] as const).map(([value, label, description]) => (
+                  <label className={database.migrationTool === value ? 'selected' : ''} key={value}>
+                    <input type="radio" name="migrationTool" value={value} checked={database.migrationTool === value} onChange={() => updateDatabase('migrationTool', value)} />
+                    <span><strong>{label}</strong><small>{description}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <div className="form-actions">
+              <button type="button" className="back-button" onClick={() => setActiveStep(1)}>Back</button>
+              <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
+            </div>
+          </form>
+        )}
+
+        {activeStep === 3 && savedDatabase && savedMetadata && (
+          <form className="project-form security-form" onSubmit={handleSecuritySubmit}>
+            <div className="form-heading">
+              <p className="eyebrow">Step 4 of 7</p>
+              <h1>Security</h1>
+              <p>Choose the security model that fits your selected frontend.</p>
+            </div>
+
+            <fieldset className="build-tool first-option-group">
+              <legend>Security</legend>
+              <div className="build-options security-options">
+                <label className={security.mode === 'none' ? 'selected' : ''}>
+                  <input type="radio" name="securityMode" value="none" checked={security.mode === 'none'} onChange={() => setSecurity({ mode: 'none', springSession: false })} />
+                  <span><strong>None</strong><small>Do not configure application security</small></span>
+                </label>
+
+                {savedMetadata.frontend === 'thymeleaf-tailwind' && (
+                  <label className={security.mode === 'http-session' ? 'selected' : ''}>
+                    <input type="radio" name="securityMode" value="http-session" checked={security.mode === 'http-session'} onChange={() => setSecurity((current) => ({ ...current, mode: 'http-session' }))} />
+                    <span><strong>HTTP Session based Security</strong><small>Session-backed authentication for server-rendered pages</small></span>
+                  </label>
+                )}
+
+                {savedMetadata.frontend === 'angular-tailwind' && (
+                  <label className={security.mode === 'oauth-resource-server' ? 'selected' : ''}>
+                    <input type="radio" name="securityMode" value="oauth-resource-server" checked={security.mode === 'oauth-resource-server'} onChange={() => setSecurity({ mode: 'oauth-resource-server', springSession: false })} />
+                    <span><strong>OAuth Resource Server</strong><small>Token-based API security for the Angular application</small></span>
+                  </label>
+                )}
+              </div>
+            </fieldset>
+
+            {savedMetadata.frontend === 'thymeleaf-tailwind' && security.mode === 'http-session' && (
+              <label className={security.springSession ? 'session-option selected' : 'session-option'}>
+                <input type="checkbox" checked={security.springSession} onChange={(event) => setSecurity((current) => ({ ...current, springSession: event.target.checked }))} />
+                <span><strong>Spring Session</strong><small>Opt in to persistent, shared HTTP session management.</small></span>
+              </label>
+            )}
+
+            <div className="form-actions">
+              <button type="button" className="back-button" onClick={() => setActiveStep(2)}>Back</button>
+              <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
+            </div>
+          </form>
+        )}
+
+        {activeStep === 4 && savedSecurity && (
           <div className="next-step-placeholder">
             <div className="welcome-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7 16.5 13 22l12-13" /></svg></div>
-            <p className="eyebrow">Project saved</p>
-            <h1>Choose Dependencies</h1>
-            <p className="description"><strong>{savedMetadata.groupId}:{savedMetadata.artifactId}</strong> is ready. Dependency selection will be implemented in the next step.</p>
-            <button type="button" className="back-button" onClick={() => setActiveStep(1)}>Back to project</button>
+            <p className="eyebrow">Security saved</p>
+            <h1>Features</h1>
+            <p className="description">Your security choices are saved and ready for the remaining generator steps.</p>
+            <button type="button" className="back-button" onClick={() => setActiveStep(3)}>Back to security</button>
           </div>
         )}
       </section>
