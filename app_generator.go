@@ -69,73 +69,59 @@ type generatorConfiguration struct {
 	Features []string `json:"features"`
 }
 
-type mavenDependency struct {
-	GroupID    string
-	ArtifactID string
-	Scope      string
-	Optional   bool
-}
-
-func (dependency mavenDependency) GradleConfiguration() string {
-	switch dependency.Scope {
-	case "runtime":
-		return "runtimeOnly"
-	case "test":
-		return "testImplementation"
-	default:
-		return "implementation"
-	}
-}
-
-func (dependency mavenDependency) Coordinate() string {
-	return dependency.GroupID + ":" + dependency.ArtifactID
-}
-
-func (dependency mavenDependency) Version() string {
-	switch dependency.Coordinate() {
-	case "org.springdoc:springdoc-openapi-starter-webmvc-ui":
-		return springdocVersion
-	case "com.tngtech.archunit:archunit-junit5":
-		return archunitVersion
-	case "io.floci:spring-boot-testcontainers-floci":
-		return flociVersion
-	default:
-		return ""
-	}
+type dependencyTemplateData struct {
+	Thymeleaf      bool
+	Angular        bool
+	JPA            bool
+	PostgreSQL     bool
+	MySQL          bool
+	MariaDB        bool
+	H2             bool
+	Flyway         bool
+	Liquibase      bool
+	Secured        bool
+	OAuth          bool
+	Email          bool
+	DockerCompose  bool
+	HasModulith    bool
+	HasCloudAWS    bool
+	Testcontainers bool
 }
 
 type pomTemplateData struct {
+	dependencyTemplateData
 	GroupID               string
 	ArtifactID            string
 	SpringBootVersion     string
 	JavaVersion           string
 	SpringModulithVersion string
 	SpringCloudAWSVersion string
-	HasModulith           bool
-	HasCloudAWS           bool
-	Dependencies          []mavenDependency
 	SpotlessVersion       string
 	PalantirFormatVersion string
 	JacocoVersion         string
 	GitCommitIDVersion    string
 	JacocoMinimumCoverage string
+	SpringdocVersion      string
+	ArchunitVersion       string
+	FlociVersion          string
 }
 
 type gradleTemplateData struct {
+	dependencyTemplateData
 	GroupID               string
 	ArtifactID            string
 	SpringBootVersion     string
 	JavaVersion           string
 	SpringModulithVersion string
 	SpringCloudAWSVersion string
-	HasModulith           bool
-	HasCloudAWS           bool
-	Dependencies          []mavenDependency
 	SpotlessVersion       string
 	PalantirFormatVersion string
 	JacocoVersion         string
 	GitPropertiesVersion  string
 	JacocoMinimumCoverage string
+	SpringdocVersion      string
+	ArchunitVersion       string
+	FlociVersion          string
 }
 
 type applicationTemplateData struct {
@@ -563,20 +549,21 @@ func generateBuildFiles(projectDirectory string, configuration generatorConfigur
 	}
 
 	gradleData := gradleTemplateData{
-		GroupID:               configuration.Project.GroupID,
-		ArtifactID:            configuration.Project.ArtifactID,
-		SpringBootVersion:     springBootVersion,
-		JavaVersion:           javaVersion,
-		SpringModulithVersion: springModulithVersion,
-		SpringCloudAWSVersion: springCloudAWSVersion,
-		HasModulith:           contains(configuration.Features, "spring-modulith"),
-		HasCloudAWS:           contains(configuration.Features, "spring-cloud-aws"),
-		Dependencies:          projectDependencies(configuration),
-		SpotlessVersion:       spotlessGradleVersion,
-		PalantirFormatVersion: palantirFormatVersion,
-		JacocoVersion:         jacocoVersion,
-		GitPropertiesVersion:  gradleGitPropsVersion,
-		JacocoMinimumCoverage: jacocoMinimumCoverage,
+		dependencyTemplateData: dependencyTemplateOptions(configuration),
+		GroupID:                configuration.Project.GroupID,
+		ArtifactID:             configuration.Project.ArtifactID,
+		SpringBootVersion:      springBootVersion,
+		JavaVersion:            javaVersion,
+		SpringModulithVersion:  springModulithVersion,
+		SpringCloudAWSVersion:  springCloudAWSVersion,
+		SpotlessVersion:        spotlessGradleVersion,
+		PalantirFormatVersion:  palantirFormatVersion,
+		JacocoVersion:          jacocoVersion,
+		GitPropertiesVersion:   gradleGitPropsVersion,
+		JacocoMinimumCoverage:  jacocoMinimumCoverage,
+		SpringdocVersion:       springdocVersion,
+		ArchunitVersion:        archunitVersion,
+		FlociVersion:           flociVersion,
 	}
 	buildTemplate := "build.gradle.tmpl"
 	settingsTemplate := "settings.gradle.tmpl"
@@ -639,108 +626,45 @@ func copyWrapperFiles(sourceDirectory string, projectDirectory string) ([]projec
 }
 
 func generatePOM(configuration generatorConfiguration) (string, error) {
-	dependencies := projectDependencies(configuration)
-
-	hasModulith := contains(configuration.Features, "spring-modulith")
-	hasCloudAWS := contains(configuration.Features, "spring-cloud-aws")
 	return renderProjectTemplate("pom.xml.tmpl", pomTemplateData{
-		GroupID:               configuration.Project.GroupID,
-		ArtifactID:            configuration.Project.ArtifactID,
-		SpringBootVersion:     springBootVersion,
-		JavaVersion:           javaVersion,
-		SpringModulithVersion: springModulithVersion,
-		SpringCloudAWSVersion: springCloudAWSVersion,
-		HasModulith:           hasModulith,
-		HasCloudAWS:           hasCloudAWS,
-		Dependencies:          dependencies,
-		SpotlessVersion:       spotlessMavenVersion,
-		PalantirFormatVersion: palantirFormatVersion,
-		JacocoVersion:         jacocoVersion,
-		GitCommitIDVersion:    gitCommitIDVersion,
-		JacocoMinimumCoverage: jacocoMinimumCoverage,
+		dependencyTemplateData: dependencyTemplateOptions(configuration),
+		GroupID:                configuration.Project.GroupID,
+		ArtifactID:             configuration.Project.ArtifactID,
+		SpringBootVersion:      springBootVersion,
+		JavaVersion:            javaVersion,
+		SpringModulithVersion:  springModulithVersion,
+		SpringCloudAWSVersion:  springCloudAWSVersion,
+		SpotlessVersion:        spotlessMavenVersion,
+		PalantirFormatVersion:  palantirFormatVersion,
+		JacocoVersion:          jacocoVersion,
+		GitCommitIDVersion:     gitCommitIDVersion,
+		JacocoMinimumCoverage:  jacocoMinimumCoverage,
+		SpringdocVersion:       springdocVersion,
+		ArchunitVersion:        archunitVersion,
+		FlociVersion:           flociVersion,
 	})
 }
 
-func projectDependencies(configuration generatorConfiguration) []mavenDependency {
-	dependencies := []mavenDependency{
-		{"org.springframework.boot", "spring-boot-starter-webmvc", "", false},
-		{"org.springframework.boot", "spring-boot-starter-test", "test", false},
+func dependencyTemplateOptions(configuration generatorConfiguration) dependencyTemplateData {
+	cloudAWS := contains(configuration.Features, "spring-cloud-aws")
+	return dependencyTemplateData{
+		Thymeleaf:      configuration.Frontend.Type == "thymeleaf",
+		Angular:        configuration.Frontend.Type == "angular",
+		JPA:            configuration.Database.PersistenceFramework == "spring-data-jpa",
+		PostgreSQL:     configuration.Database.Engine == "postgresql",
+		MySQL:          configuration.Database.Engine == "mysql",
+		MariaDB:        configuration.Database.Engine == "mariadb",
+		H2:             configuration.Database.Engine == "h2",
+		Flyway:         configuration.Database.MigrationTool == "flyway",
+		Liquibase:      configuration.Database.MigrationTool == "liquibase",
+		Secured:        configuration.Security.Mode != "none",
+		OAuth:          configuration.Security.Mode == "oauth-resource-server",
+		Email:          contains(configuration.Features, "email"),
+		DockerCompose:  contains(configuration.Features, "docker-compose"),
+		HasModulith:    contains(configuration.Features, "spring-modulith"),
+		HasCloudAWS:    cloudAWS,
+		Testcontainers: configuration.Database.Engine != "h2" || cloudAWS,
 	}
-
-	if configuration.Frontend.Type == "thymeleaf" {
-		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-thymeleaf", "", false})
-	}
-	if configuration.Frontend.Type == "angular" {
-		dependencies = append(dependencies, mavenDependency{"org.springdoc", "springdoc-openapi-starter-webmvc-ui", "", false})
-	}
-	if configuration.Database.PersistenceFramework == "spring-data-jpa" {
-		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-data-jpa", "", false})
-	} else {
-		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-jdbc", "", false})
-	}
-
-	switch configuration.Database.Engine {
-	case "postgresql":
-		dependencies = append(dependencies, mavenDependency{"org.postgresql", "postgresql", "runtime", false})
-	case "mysql":
-		dependencies = append(dependencies, mavenDependency{"com.mysql", "mysql-connector-j", "runtime", false})
-	case "mariadb":
-		dependencies = append(dependencies, mavenDependency{"org.mariadb.jdbc", "mariadb-java-client", "runtime", false})
-	case "h2":
-		dependencies = append(dependencies, mavenDependency{"com.h2database", "h2", "runtime", false})
-	}
-
-	switch configuration.Database.MigrationTool {
-	case "flyway":
-		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-flyway", "", false})
-		if configuration.Database.Engine == "postgresql" {
-			dependencies = append(dependencies, mavenDependency{"org.flywaydb", "flyway-database-postgresql", "runtime", false})
-		} else if configuration.Database.Engine == "mysql" || configuration.Database.Engine == "mariadb" {
-			dependencies = append(dependencies, mavenDependency{"org.flywaydb", "flyway-mysql", "runtime", false})
-		}
-	case "liquibase":
-		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-liquibase", "", false})
-	}
-
-	if configuration.Security.Mode != "none" {
-		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-security", "", false})
-		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-webmvc-test", "test", false})
-	}
-	if configuration.Security.Mode == "oauth-resource-server" {
-		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-oauth2-resource-server", "", false})
-	}
-
-	if contains(configuration.Features, "email") {
-		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-mail", "", false})
-	}
-	if contains(configuration.Features, "docker-compose") {
-		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-docker-compose", "runtime", true})
-	}
-	if contains(configuration.Features, "spring-modulith") {
-		dependencies = append(dependencies, mavenDependency{"org.springframework.modulith", "spring-modulith-starter-core", "", false})
-		dependencies = append(dependencies, mavenDependency{"org.springframework.modulith", "spring-modulith-starter-test", "test", false})
-	}
-	if contains(configuration.Features, "spring-cloud-aws") {
-		dependencies = append(dependencies, mavenDependency{"io.awspring.cloud", "spring-cloud-aws-starter", "", false})
-		dependencies = append(dependencies, mavenDependency{"io.floci", "spring-boot-testcontainers-floci", "test", false})
-	}
-	if configuration.Database.Engine != "h2" || contains(configuration.Features, "spring-cloud-aws") {
-		dependencies = append(dependencies,
-			mavenDependency{"org.springframework.boot", "spring-boot-testcontainers", "test", false},
-			mavenDependency{"org.testcontainers", "testcontainers-junit-jupiter", "test", false},
-		)
-		switch configuration.Database.Engine {
-		case "postgresql":
-			dependencies = append(dependencies, mavenDependency{"org.testcontainers", "testcontainers-postgresql", "test", false})
-		case "mysql":
-			dependencies = append(dependencies, mavenDependency{"org.testcontainers", "testcontainers-mysql", "test", false})
-		case "mariadb":
-			dependencies = append(dependencies, mavenDependency{"org.testcontainers", "testcontainers-mariadb", "test", false})
-		}
-	}
-	dependencies = append(dependencies, mavenDependency{"com.tngtech.archunit", "archunit-junit5", "test", false})
-
-	return dependencies
 }
 
 func generateApplicationClass(packageName string) (string, error) {

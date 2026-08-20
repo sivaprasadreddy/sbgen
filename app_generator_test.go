@@ -365,10 +365,10 @@ func TestBuildToolsHaveEquivalentDependencySemantics(t *testing.T) {
 	configuration.Security.Mode = "http-session"
 	configuration.Features = []string{"email", "docker-compose", "spring-modulith", "spring-cloud-aws"}
 
-	wantScopes := make(map[string]string)
-	for _, dependency := range projectDependencies(configuration) {
-		wantScopes[dependency.Coordinate()] = dependency.GradleConfiguration()
-	}
+	mavenConfiguration := configuration
+	mavenConfiguration.Project.BuildTool = "maven"
+	_, mavenArchive := generateProjectArchive(t, mavenConfiguration)
+	wantScopes := extractDependencyScopes(t, "maven", readArchiveFile(t, mavenArchive, "demo/pom.xml"))
 
 	for _, buildTool := range []string{"maven", "gradle-groovy", "gradle-kotlin"} {
 		t.Run(buildTool, func(t *testing.T) {
@@ -873,7 +873,7 @@ func TestSpringdocFlociAndArchUnitGeneration(t *testing.T) {
 		filePath, archive := generateProjectArchive(t, configuration)
 		pom := readArchiveFile(t, archive, "demo/pom.xml")
 		assertBuildDependencies(t, "maven", pom, dependencyExpectation{present: []string{"com.tngtech.archunit:archunit-junit5"}})
-		if !strings.Contains(pom, "<version>"+archunitVersion+"</version>") {
+		if !strings.Contains(pom, "<archunit.version>"+archunitVersion+"</archunit.version>") || !strings.Contains(pom, "<version>${archunit.version}</version>") {
 			t.Errorf("ArchUnit version is missing:\n%s", pom)
 		}
 		architectureTest := readArchiveFile(t, archive, "demo/src/test/java/com/example/demo/ArchUnitTests.java")
@@ -891,7 +891,7 @@ func TestSpringdocFlociAndArchUnitGeneration(t *testing.T) {
 		filePath, archive := generateProjectArchive(t, configuration)
 		pom := readArchiveFile(t, archive, "demo/pom.xml")
 		assertBuildDependencies(t, "maven", pom, dependencyExpectation{present: []string{"org.springdoc:springdoc-openapi-starter-webmvc-ui"}})
-		if !strings.Contains(pom, "<version>"+springdocVersion+"</version>") {
+		if !strings.Contains(pom, "<springdoc-openapi.version>"+springdocVersion+"</springdoc-openapi.version>") || !strings.Contains(pom, "<version>${springdoc-openapi.version}</version>") {
 			t.Errorf("Springdoc version is missing:\n%s", pom)
 		}
 		properties := readArchiveFile(t, archive, "demo/src/main/resources/application.properties")
@@ -912,7 +912,7 @@ func TestSpringdocFlociAndArchUnitGeneration(t *testing.T) {
 			"org.springframework.boot:spring-boot-testcontainers",
 			"io.floci:spring-boot-testcontainers-floci",
 		}})
-		if !strings.Contains(pom, "<version>"+flociVersion+"</version>") {
+		if !strings.Contains(pom, "<spring-boot-floci-tc.version>"+flociVersion+"</spring-boot-floci-tc.version>") || !strings.Contains(pom, "<version>${spring-boot-floci-tc.version}</version>") {
 			t.Errorf("Floci version is missing:\n%s", pom)
 		}
 		assertArchiveContains(t, archive,
