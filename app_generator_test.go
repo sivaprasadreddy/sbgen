@@ -80,6 +80,118 @@ func TestGenerateProjectCreatesMavenArchive(t *testing.T) {
 	}
 }
 
+func TestMinimalGeneratedApplication(t *testing.T) {
+	configuration := minimalConfiguration()
+	filePath, archive := generateProjectArchive(t, configuration)
+
+	wantFiles := []string{
+		"demo/pom.xml",
+		"demo/src/main/java/com/example/demo/Application.java",
+		"demo/src/main/resources/application.properties",
+		"demo/src/test/java/com/example/demo/ApplicationTests.java",
+		"demo/src/test/resources/application-test.properties",
+		"demo/.gitignore",
+		"demo/README.md",
+		"demo/.mvn/wrapper/maven-wrapper.properties",
+		"demo/mvnw",
+		"demo/mvnw.cmd",
+	}
+	assertArchiveContains(t, archive, wantFiles...)
+	for _, name := range listArchiveFiles(archive) {
+		if !strings.HasPrefix(name, "demo/") {
+			t.Errorf("archive entry %q is outside the project root", name)
+		}
+	}
+
+	pom := readArchiveFile(t, archive, "demo/pom.xml")
+	assertBuildDependencies(t, "maven", pom, dependencyExpectation{present: []string{
+		"org.springframework.boot:spring-boot-starter-webmvc",
+		"org.springframework.boot:spring-boot-starter-test",
+		"org.springframework.boot:spring-boot-starter-jdbc",
+		"com.h2database:h2",
+	}})
+	assertMavenBaseline(t, pom, configuration)
+
+	application := readArchiveFile(t, archive, "demo/src/main/java/com/example/demo/Application.java")
+	if !strings.Contains(application, "package com.example.demo;") || !strings.Contains(application, "@SpringBootApplication") {
+		t.Errorf("generated Application.java is invalid:\n%s", application)
+	}
+	applicationTest := readArchiveFile(t, archive, "demo/src/test/java/com/example/demo/ApplicationTests.java")
+	if !strings.Contains(applicationTest, "@SpringBootTest") || !strings.Contains(applicationTest, "void contextLoads()") {
+		t.Errorf("generated ApplicationTests.java is not a context-load test:\n%s", applicationTest)
+	}
+	if properties := readArchiveFile(t, archive, "demo/src/main/resources/application.properties"); !strings.Contains(properties, "spring.application.name=demo") {
+		t.Errorf("application.properties does not set the application name:\n%s", properties)
+	}
+	if gitignore := readArchiveFile(t, archive, "demo/.gitignore"); !strings.Contains(gitignore, "target/") {
+		t.Errorf("generated .gitignore does not exclude Maven output:\n%s", gitignore)
+	}
+	if readme := readArchiveFile(t, archive, "demo/README.md"); !strings.Contains(readme, "./mvnw test") {
+		t.Errorf("generated README does not document the build:\n%s", readme)
+	}
+	assertArchiveFileMode(t, archive, "demo/mvnw", 0o755)
+	assertArchiveFileMode(t, archive, "demo/mvnw.cmd", 0o755)
+
+	smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
+}
+
+func assertMavenBaseline(t *testing.T, pom string, configuration generatorConfiguration) {
+	t.Helper()
+	var project struct {
+		Parent struct {
+			GroupID    string `xml:"groupId"`
+			ArtifactID string `xml:"artifactId"`
+			Version    string `xml:"version"`
+		} `xml:"parent"`
+		GroupID    string `xml:"groupId"`
+		ArtifactID string `xml:"artifactId"`
+		Version    string `xml:"version"`
+		Name       string `xml:"name"`
+		Properties struct {
+			JavaVersion string `xml:"java.version"`
+		} `xml:"properties"`
+		Dependencies []struct {
+			GroupID    string `xml:"groupId"`
+			ArtifactID string `xml:"artifactId"`
+			Scope      string `xml:"scope"`
+		} `xml:"dependencies>dependency"`
+	}
+	if err := xml.Unmarshal([]byte(pom), &project); err != nil {
+		t.Fatalf("parse baseline pom.xml: %v", err)
+	}
+	if project.Parent.GroupID != "org.springframework.boot" || project.Parent.ArtifactID != "spring-boot-starter-parent" || project.Parent.Version != springBootVersion {
+		t.Errorf("Spring Boot parent = %s:%s:%s, want org.springframework.boot:spring-boot-starter-parent:%s", project.Parent.GroupID, project.Parent.ArtifactID, project.Parent.Version, springBootVersion)
+	}
+	if project.GroupID != configuration.Project.GroupID || project.ArtifactID != configuration.Project.ArtifactID || project.Version != "0.0.1-SNAPSHOT" || project.Name != configuration.Project.ArtifactID {
+		t.Errorf("project metadata = %s:%s:%s name=%q, want %s:%s:0.0.1-SNAPSHOT name=%q", project.GroupID, project.ArtifactID, project.Version, project.Name, configuration.Project.GroupID, configuration.Project.ArtifactID, configuration.Project.ArtifactID)
+	}
+	if project.Properties.JavaVersion != javaVersion {
+		t.Errorf("Java version = %q, want %q", project.Properties.JavaVersion, javaVersion)
+	}
+	for _, dependency := range project.Dependencies {
+		if dependency.GroupID == "org.springframework.boot" && dependency.ArtifactID == "spring-boot-starter-test" {
+			if dependency.Scope != "test" {
+				t.Errorf("spring-boot-starter-test scope = %q, want test", dependency.Scope)
+			}
+			return
+		}
+	}
+	t.Error("spring-boot-starter-test dependency not found")
+}
+
+func assertArchiveFileMode(t *testing.T, archive *zip.ReadCloser, name string, want os.FileMode) {
+	t.Helper()
+	for _, file := range archive.File {
+		if file.Name == name {
+			if got := file.Mode().Perm(); got != want {
+				t.Errorf("archive file %q mode = %o, want %o", name, got, want)
+			}
+			return
+		}
+	}
+	t.Errorf("archive file %q not found", name)
+}
+
 func TestGenerateProjectRejectsInvalidPackage(t *testing.T) {
 	payload := `{"project":{"groupId":"com.example","artifactId":"demo","packageName":"invalid-package"}}`
 	if _, err := (&ConfigService{}).GenerateProject(payload); err == nil {
@@ -404,6 +516,13 @@ func smokeTestGeneratedProject(t *testing.T, archivePath string, buildTool strin
 	}
 	if runtime.GOOS == "windows" {
 		commandLine[0] += ".cmd"
+	}
+	if buildTool == "maven" {
+		mavenRepository := filepath.Join(os.TempDir(), "sbgen-maven-repository")
+		if err := os.MkdirAll(mavenRepository, 0o755); err != nil {
+			t.Fatalf("create isolated Maven repository: %v", err)
+		}
+		commandLine = append(commandLine[:1], append([]string{"-Dmaven.repo.local=" + mavenRepository}, commandLine[1:]...)...)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)

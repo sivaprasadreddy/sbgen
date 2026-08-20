@@ -81,6 +81,19 @@ type applicationTemplateData struct {
 	PackageName string
 }
 
+type projectMetadataTemplateData struct {
+	GroupID      string
+	ArtifactID   string
+	PackageName  string
+	MavenVersion string
+}
+
+type projectFile struct {
+	Name    string
+	Content string
+	Mode    os.FileMode
+}
+
 type projectArchiveWriter func(*zip.Writer, string, generatorConfiguration) error
 
 func (s *ConfigService) GenerateProject(configurationJSON string) (filePath string, err error) {
@@ -194,15 +207,71 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 	if err != nil {
 		return err
 	}
-	if err := writeZIPFile(archive, projectDirectory+"/pom.xml", pomXML); err != nil {
+	applicationTest, err := renderProjectTemplate("ApplicationTests.java.tmpl", applicationTemplateData{PackageName: configuration.Project.PackageName})
+	if err != nil {
 		return err
 	}
+	metadata := projectMetadataTemplateData{
+		GroupID:      configuration.Project.GroupID,
+		ArtifactID:   configuration.Project.ArtifactID,
+		PackageName:  configuration.Project.PackageName,
+		MavenVersion: "3.9.11",
+	}
+	applicationProperties, err := renderProjectTemplate("application.properties.tmpl", metadata)
+	if err != nil {
+		return err
+	}
+	readme, err := renderProjectTemplate("README.md.tmpl", metadata)
+	if err != nil {
+		return err
+	}
+	mavenWrapperProperties, err := renderProjectTemplate("maven-wrapper.properties.tmpl", metadata)
+	if err != nil {
+		return err
+	}
+	mavenWrapper, err := renderProjectTemplate("mvnw.tmpl", metadata)
+	if err != nil {
+		return err
+	}
+	mavenWrapperWindows, err := renderProjectTemplate("mvnw.cmd.tmpl", metadata)
+	if err != nil {
+		return err
+	}
+	gitignore, err := renderProjectTemplate("gitignore.tmpl", nil)
+	if err != nil {
+		return err
+	}
+	testProperties, err := renderProjectTemplate("application-test.properties.tmpl", nil)
+	if err != nil {
+		return err
+	}
+
 	packagePath := strings.ReplaceAll(configuration.Project.PackageName, ".", "/")
-	return writeZIPFile(archive, projectDirectory+"/src/main/java/"+packagePath+"/Application.java", applicationJava)
+	files := []projectFile{
+		{projectDirectory + "/pom.xml", pomXML, 0o644},
+		{projectDirectory + "/src/main/java/" + packagePath + "/Application.java", applicationJava, 0o644},
+		{projectDirectory + "/src/main/resources/application.properties", applicationProperties, 0o644},
+		{projectDirectory + "/src/test/java/" + packagePath + "/ApplicationTests.java", applicationTest, 0o644},
+		{projectDirectory + "/src/test/resources/application-test.properties", testProperties, 0o644},
+		{projectDirectory + "/.gitignore", gitignore, 0o644},
+		{projectDirectory + "/README.md", readme, 0o644},
+		{projectDirectory + "/.mvn/wrapper/maven-wrapper.properties", mavenWrapperProperties, 0o644},
+		{projectDirectory + "/mvnw", mavenWrapper, 0o755},
+		{projectDirectory + "/mvnw.cmd", mavenWrapperWindows, 0o755},
+	}
+	for _, file := range files {
+		if err := writeZIPFileMode(archive, file.Name, file.Content, file.Mode); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func generatePOM(configuration generatorConfiguration) (string, error) {
-	dependencies := []mavenDependency{{"org.springframework.boot", "spring-boot-starter-webmvc", "", false}}
+	dependencies := []mavenDependency{
+		{"org.springframework.boot", "spring-boot-starter-webmvc", "", false},
+		{"org.springframework.boot", "spring-boot-starter-test", "test", false},
+	}
 
 	if configuration.Frontend.Type == "thymeleaf" {
 		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-thymeleaf", "", false})
@@ -287,11 +356,15 @@ func renderProjectTemplate(name string, data any) (string, error) {
 }
 
 func writeZIPFile(archive *zip.Writer, name string, content string) error {
+	return writeZIPFileMode(archive, name, content, 0o644)
+}
+
+func writeZIPFileMode(archive *zip.Writer, name string, content string, mode os.FileMode) error {
 	if err := validateZIPEntryName(name); err != nil {
 		return err
 	}
 	header := &zip.FileHeader{Name: name, Method: zip.Deflate}
-	header.SetMode(0o644)
+	header.SetMode(mode)
 	entry, err := archive.CreateHeader(header)
 	if err != nil {
 		return fmt.Errorf("create %s in project archive: %w", name, err)
