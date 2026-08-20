@@ -27,6 +27,9 @@ func main() {
 	app := application.New(application.Options{
 		Name:        "Spring Boot App Generator",
 		Description: "A Spring Boot Application Generator",
+		Services: []application.Service{
+			application.NewService(&ConfigService{}),
+		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
 		},

@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react'
+import { ConfigService } from '../bindings/changeme'
 
 const steps = ['Welcome', 'Project', 'Frontend', 'Database', 'Security', 'Features', 'Review', 'Complete']
 
@@ -17,6 +18,31 @@ const featureOptions: ReadonlyArray<readonly [Feature, string, string]> = [
   ['email', 'Email', 'Send transactional and application emails'],
   ['docker-compose', 'Docker Compose', 'Run supporting services for local development'],
 ]
+
+const labels: Record<string, string> = {
+  maven: 'Maven',
+  'gradle-groovy': 'Gradle – Groovy',
+  'gradle-kotlin': 'Gradle – Kotlin',
+  none: 'None',
+  thymeleaf: 'Thymeleaf',
+  angular: 'Angular',
+  tailwind: 'Tailwind CSS',
+  bootstrap: 'Bootstrap CSS',
+  postgresql: 'PostgreSQL',
+  mysql: 'MySQL',
+  mariadb: 'MariaDB',
+  h2: 'H2',
+  flyway: 'Flyway',
+  liquibase: 'Liquibase',
+  'spring-data-jpa': 'Spring Data JPA',
+  'spring-jdbc-client': 'Spring JdbcClient',
+  'http-session': 'HTTP Session based Security',
+  'oauth-resource-server': 'OAuth Resource Server',
+  email: 'Email',
+  'docker-compose': 'Docker Compose',
+  'spring-modulith': 'Spring Modulith',
+  'spring-cloud-aws': 'Spring Cloud AWS',
+}
 
 type ProjectMetadata = {
   groupId: string
@@ -76,6 +102,9 @@ function App() {
   const [savedSecurity, setSavedSecurity] = useState<SecurityConfiguration | null>(null)
   const [features, setFeatures] = useState<Feature[]>(['spring-modulith', 'docker-compose'])
   const [savedFeatures, setSavedFeatures] = useState<Feature[] | null>(null)
+  const [downloadedFilePath, setDownloadedFilePath] = useState('')
+  const [generationError, setGenerationError] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
 
   const updateMetadata = <K extends keyof ProjectMetadata>(field: K, value: ProjectMetadata[K]) => {
     setMetadata((current) => ({ ...current, [field]: value }))
@@ -127,6 +156,50 @@ function App() {
     event.preventDefault()
     setSavedFeatures([...features])
     setActiveStep(6)
+  }
+
+  const handleGenerate = async () => {
+    if (!savedMetadata || !savedFrontend || !savedDatabase || !savedSecurity || !savedFeatures) return
+
+    const configuration = {
+      project: savedMetadata,
+      frontend: {
+        type: savedFrontend.frontend,
+        cssFramework: savedFrontend.frontend === 'none' ? null : savedFrontend.cssFramework,
+      },
+      database: savedDatabase,
+      security: savedSecurity,
+      features: savedFeatures,
+    }
+
+    setIsGenerating(true)
+    setGenerationError('')
+    try {
+      const filePath = await ConfigService.SaveConfiguration(JSON.stringify(configuration), savedMetadata.artifactId)
+      setDownloadedFilePath(filePath)
+      setActiveStep(7)
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const handleStartNew = () => {
+    setMetadata(initialMetadata)
+    setSavedMetadata(null)
+    setFrontend(initialFrontendConfiguration)
+    setSavedFrontend(null)
+    setDatabase(initialDatabaseConfiguration)
+    setSavedDatabase(null)
+    setSecurity(initialSecurityConfiguration)
+    setSavedSecurity(null)
+    setFeatures(['spring-modulith', 'docker-compose'])
+    setSavedFeatures(null)
+    setDownloadedFilePath('')
+    setGenerationError('')
+    setIsGenerating(false)
+    setActiveStep(0)
   }
 
   return (
@@ -393,13 +466,79 @@ function App() {
           </form>
         )}
 
-        {activeStep === 6 && savedFeatures && (
-          <div className="next-step-placeholder">
+        {activeStep === 6 && savedMetadata && savedFrontend && savedDatabase && savedSecurity && savedFeatures && (
+          <div className="project-form review-form">
+            <div className="form-heading">
+              <p className="eyebrow">Step 7 of 8</p>
+              <h1>Review</h1>
+              <p>Review your selections before downloading the project configuration.</p>
+            </div>
+
+            <div className="review-grid">
+              <section className="review-section">
+                <h2>Project</h2>
+                <dl>
+                  <div><dt>Group ID</dt><dd>{savedMetadata.groupId}</dd></div>
+                  <div><dt>Artifact ID</dt><dd>{savedMetadata.artifactId}</dd></div>
+                  <div><dt>Package</dt><dd>{savedMetadata.packageName}</dd></div>
+                  <div><dt>Build Tool</dt><dd>{labels[savedMetadata.buildTool]}</dd></div>
+                </dl>
+              </section>
+
+              <section className="review-section">
+                <h2>Frontend</h2>
+                <dl>
+                  <div><dt>Frontend</dt><dd>{labels[savedFrontend.frontend]}</dd></div>
+                  <div><dt>CSS Framework</dt><dd>{savedFrontend.frontend === 'none' ? 'Not applicable' : labels[savedFrontend.cssFramework]}</dd></div>
+                </dl>
+              </section>
+
+              <section className="review-section">
+                <h2>Database</h2>
+                <dl>
+                  <div><dt>Database</dt><dd>{labels[savedDatabase.engine]}</dd></div>
+                  <div><dt>Persistence</dt><dd>{labels[savedDatabase.persistenceFramework]}</dd></div>
+                  <div><dt>Migration</dt><dd>{labels[savedDatabase.migrationTool]}</dd></div>
+                </dl>
+              </section>
+
+              <section className="review-section">
+                <h2>Security</h2>
+                <dl>
+                  <div><dt>Security</dt><dd>{labels[savedSecurity.mode]}</dd></div>
+                  <div><dt>Spring Session</dt><dd>{savedSecurity.springSession ? 'Enabled' : 'Disabled'}</dd></div>
+                </dl>
+              </section>
+
+              <section className="review-section review-features">
+                <h2>Features</h2>
+                <div className="review-tags">
+                  {savedFeatures.length === 0
+                    ? <span className="empty-tag">None</span>
+                    : savedFeatures.map((feature) => <span key={feature}>{labels[feature]}</span>)}
+                </div>
+              </section>
+            </div>
+
+            {generationError && <p className="generation-error" role="alert">{generationError}</p>}
+            <div className="form-actions">
+              <button type="button" className="back-button" onClick={() => setActiveStep(5)} disabled={isGenerating}>Back</button>
+              <button type="button" className="next-button generate-button" onClick={handleGenerate} disabled={isGenerating}>{isGenerating ? 'Generating…' : 'Generate'} <span aria-hidden="true">↓</span></button>
+            </div>
+          </div>
+        )}
+
+        {activeStep === 7 && downloadedFilePath && (
+          <div className="complete-step">
             <div className="welcome-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7 16.5 13 22l12-13" /></svg></div>
-            <p className="eyebrow">Features saved</p>
-            <h1>Review</h1>
-            <p className="description">{savedFeatures.length === 0 ? 'No optional features selected.' : `${savedFeatures.length} optional feature${savedFeatures.length === 1 ? '' : 's'} selected.`} Your project is ready to review.</p>
-            <button type="button" className="back-button" onClick={() => setActiveStep(5)}>Back to features</button>
+            <p className="eyebrow">Complete</p>
+            <h1>Configuration downloaded</h1>
+            <p className="description">Your selected Spring Boot project details were saved as a JSON configuration file.</p>
+            <div className="download-location">
+              <span>Downloaded file</span>
+              <code>{downloadedFilePath}</code>
+            </div>
+            <button type="button" className="continue-button" onClick={handleStartNew}>Start New</button>
           </div>
         )}
       </section>
