@@ -1,5 +1,5 @@
 services:
-{{- if .PostgreSQL }}
+{{ if .PostgreSQL }}
   postgres:
     image: postgres:17-alpine
     environment:
@@ -13,8 +13,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-{{- end }}
-{{- if .MySQL }}
+{{ end }}
+{{ if .MySQL }}
   mysql:
     image: mysql:8.4
     environment:
@@ -29,8 +29,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-{{- end }}
-{{- if .MariaDB }}
+{{ end }}
+{{ if .MariaDB }}
   mariadb:
     image: mariadb:11.8
     environment:
@@ -45,4 +45,4 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-{{- end }}
+{{ end }}

@@ -743,6 +743,23 @@ func TestOptionalFeaturesGenerateInIsolationAndTogether(t *testing.T) {
 	})
 }
 
+func TestComposeTemplateSupportsMultipleSelectedServices(t *testing.T) {
+	compose, err := renderProjectTemplate("compose.yaml.tmpl", composeTemplateData{
+		DatabaseName: "demo",
+		PostgreSQL:   true,
+		MySQL:        true,
+		MariaDB:      true,
+	})
+	if err != nil {
+		t.Fatalf("render compose template: %v", err)
+	}
+	for _, service := range []string{"  postgres:\n", "  mysql:\n", "  mariadb:\n"} {
+		if count := strings.Count(compose, service); count != 1 {
+			t.Errorf("compose service %q occurs %d times, want once:\n%s", strings.TrimSpace(service), count, compose)
+		}
+	}
+}
+
 func assertNoArchivePrefix(t *testing.T, archive *zip.ReadCloser, prefix string) {
 	t.Helper()
 	for _, name := range listArchiveFiles(archive) {
