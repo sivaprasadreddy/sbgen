@@ -1,6 +1,8 @@
 .idea
 *.iml
 tmp-templates/
+tasks.md
+review.md
 
 .task
 bin
