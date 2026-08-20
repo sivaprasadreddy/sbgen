@@ -3,12 +3,14 @@ import { FormEvent, useState } from 'react'
 const steps = ['Welcome', 'Project', 'Dependencies', 'Configuration', 'Features', 'Review', 'Complete']
 
 type BuildTool = 'maven' | 'gradle-groovy' | 'gradle-kotlin'
+type Frontend = 'none' | 'thymeleaf-tailwind' | 'angular-tailwind'
 
 type ProjectMetadata = {
   groupId: string
   artifactId: string
   packageName: string
   buildTool: BuildTool
+  frontend: Frontend
 }
 
 const initialMetadata: ProjectMetadata = {
@@ -16,6 +18,7 @@ const initialMetadata: ProjectMetadata = {
   artifactId: 'demo',
   packageName: 'com.example.demo',
   buildTool: 'maven',
+  frontend: 'none',
 }
 
 function App() {
@@ -66,7 +69,7 @@ function App() {
             <div className="form-heading">
               <p className="eyebrow">Step 2 of 7</p>
               <h1>Project Metadata</h1>
-              <p>Define the coordinates and build system for your new Spring Boot application.</p>
+              <p>Define the coordinates, build system, and frontend for your new Spring Boot application.</p>
             </div>
 
             <div className="field-grid">
@@ -98,6 +101,22 @@ function App() {
                   <label className={metadata.buildTool === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="buildTool" value={value} checked={metadata.buildTool === value} onChange={() => updateMetadata('buildTool', value)} />
                     <span><strong>{label}</strong><small>{file}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="build-tool frontend-choice">
+              <legend>Frontend</legend>
+              <div className="build-options">
+                {([
+                  ['none', 'None', 'Backend only'],
+                  ['thymeleaf-tailwind', 'Thymeleaf + TailwindCSS', 'Server-rendered UI'],
+                  ['angular-tailwind', 'Angular + TailwindCSS', 'Single-page application'],
+                ] as const).map(([value, label, description]) => (
+                  <label className={metadata.frontend === value ? 'selected' : ''} key={value}>
+                    <input type="radio" name="frontend" value={value} checked={metadata.frontend === value} onChange={() => updateMetadata('frontend', value)} />
+                    <span><strong>{label}</strong><small>{description}</small></span>
                   </label>
                 ))}
               </div>
