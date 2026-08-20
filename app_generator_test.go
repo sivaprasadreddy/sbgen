@@ -377,6 +377,42 @@ func TestDatabaseEnginesGenerateIsolatedRuntimeDriversAndConfiguration(t *testin
 	}
 }
 
+func TestPersistenceFrameworksGenerateExclusiveDependencies(t *testing.T) {
+	tests := []struct {
+		name              string
+		framework         string
+		presentDependency string
+		absentDependency  string
+	}{
+		{
+			name:              "Spring Data JPA",
+			framework:         "spring-data-jpa",
+			presentDependency: "org.springframework.boot:spring-boot-starter-data-jpa",
+			absentDependency:  "org.springframework.boot:spring-boot-starter-jdbc",
+		},
+		{
+			name:              "Spring JdbcClient",
+			framework:         "spring-jdbc-client",
+			presentDependency: "org.springframework.boot:spring-boot-starter-jdbc",
+			absentDependency:  "org.springframework.boot:spring-boot-starter-data-jpa",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			configuration := minimalConfiguration()
+			configuration.Database.PersistenceFramework = test.framework
+			_, archive := generateProjectArchive(t, configuration)
+
+			pom := readArchiveFile(t, archive, "demo/pom.xml")
+			assertBuildDependencies(t, "maven", pom, dependencyExpectation{
+				present: []string{test.presentDependency},
+				absent:  []string{test.absentDependency},
+			})
+		})
+	}
+}
+
 func assertDatasourceCredentialsAreSafe(t *testing.T, properties string, external bool) {
 	t.Helper()
 	username := propertyValue(properties, "spring.datasource.username")
