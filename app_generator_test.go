@@ -525,7 +525,7 @@ func TestSecurityModesGenerateDependenciesConfigurationAndProtectedRoutes(t *tes
 				"org.springframework.boot:spring-boot-starter-security",
 				"org.springframework.boot:spring-boot-starter-webmvc-test",
 			},
-			absent:   []string{"org.springframework.boot:spring-boot-starter-oauth2-resource-server"},
+			absent: []string{"org.springframework.boot:spring-boot-starter-oauth2-resource-server"},
 			configSnippets: []string{
 				`.requestMatchers("/public").permitAll()`,
 				".anyRequest().authenticated()",
@@ -603,6 +603,144 @@ func TestSecurityModesGenerateDependenciesConfigurationAndProtectedRoutes(t *tes
 			smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
 		})
 	}
+}
+
+func TestOptionalFeaturesGenerateInIsolationAndTogether(t *testing.T) {
+	t.Run("email", func(t *testing.T) {
+		configuration := minimalConfiguration()
+		configuration.Features = []string{"email"}
+		filePath, archive := generateProjectArchive(t, configuration)
+		pom := readArchiveFile(t, archive, "demo/pom.xml")
+		assertBuildDependencies(t, "maven", pom, dependencyExpectation{
+			present: []string{"org.springframework.boot:spring-boot-starter-mail"},
+			absent:  []string{"org.springframework.boot:spring-boot-docker-compose", "org.springframework.modulith:spring-modulith-starter-core", "io.awspring.cloud:spring-cloud-aws-starter"},
+		})
+		properties := readArchiveFile(t, archive, "demo/src/main/resources/application.properties")
+		for _, property := range []string{"spring.mail.host=${MAIL_HOST:localhost}", "spring.mail.port=${MAIL_PORT:1025}", "spring.mail.username=${MAIL_USERNAME:}", "spring.mail.password=${MAIL_PASSWORD:}"} {
+			if !strings.Contains(properties, property) {
+				t.Errorf("mail configuration is missing %q:\n%s", property, properties)
+			}
+		}
+		assertArchiveExcludes(t, archive, "demo/compose.yaml", "demo/src/test/java/com/example/demo/ModularityTests.java")
+		smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
+	})
+
+	composeTests := []struct {
+		engine  string
+		service string
+		image   string
+		port    string
+		health  string
+		environ []string
+	}{
+		{"postgresql", "postgres:", "postgres:17-alpine", `"5432:5432"`, "pg_isready -U demo -d demo", []string{"POSTGRES_DB: demo", "POSTGRES_USER: demo", "POSTGRES_PASSWORD: demo"}},
+		{"mysql", "mysql:", "mysql:8.4", `"3306:3306"`, "mysqladmin ping", []string{"MYSQL_DATABASE: demo", "MYSQL_USER: demo", "MYSQL_PASSWORD: demo", "MYSQL_ROOT_PASSWORD: root"}},
+		{"mariadb", "mariadb:", "mariadb:11.8", `"3306:3306"`, "healthcheck.sh", []string{"MARIADB_DATABASE: demo", "MARIADB_USER: demo", "MARIADB_PASSWORD: demo", "MARIADB_ROOT_PASSWORD: root"}},
+	}
+	for _, test := range composeTests {
+		t.Run("docker-compose "+test.engine, func(t *testing.T) {
+			configuration := minimalConfiguration()
+			configuration.Database.Engine = test.engine
+			configuration.Features = []string{"docker-compose"}
+			filePath, archive := generateProjectArchive(t, configuration)
+			pom := readArchiveFile(t, archive, "demo/pom.xml")
+			assertBuildDependencies(t, "maven", pom, dependencyExpectation{present: []string{"org.springframework.boot:spring-boot-docker-compose"}})
+			if !mavenDependencyIsOptional(t, pom, "org.springframework.boot", "spring-boot-docker-compose") || !strings.Contains(pom, "<scope>runtime</scope>") {
+				t.Errorf("Docker Compose dependency is not optional runtime:\n%s", pom)
+			}
+			compose := readArchiveFile(t, archive, "demo/compose.yaml")
+			want := append([]string{"services:", test.service, "image: " + test.image, test.port, test.health, "interval: 10s", "timeout: 5s", "retries: 5"}, test.environ...)
+			for _, snippet := range want {
+				if !strings.Contains(compose, snippet) {
+					t.Errorf("%s compose file is missing %q:\n%s", test.engine, snippet, compose)
+				}
+			}
+			smokeBuildGeneratedProject(t, filePath, configuration.Project.BuildTool)
+		})
+	}
+
+	t.Run("docker-compose h2", func(t *testing.T) {
+		configuration := minimalConfiguration()
+		configuration.Features = []string{"docker-compose"}
+		filePath, archive := generateProjectArchive(t, configuration)
+		assertArchiveExcludes(t, archive, "demo/compose.yaml")
+		properties := readArchiveFile(t, archive, "demo/src/main/resources/application.properties")
+		if !strings.Contains(properties, "spring.docker.compose.enabled=false") {
+			t.Errorf("H2 Docker Compose selection is not safely disabled:\n%s", properties)
+		}
+		smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
+	})
+
+	t.Run("spring-modulith", func(t *testing.T) {
+		configuration := minimalConfiguration()
+		configuration.Features = []string{"spring-modulith", "spring-modulith"}
+		filePath, archive := generateProjectArchive(t, configuration)
+		pom := readArchiveFile(t, archive, "demo/pom.xml")
+		for _, artifact := range []string{"spring-modulith-starter-core", "spring-modulith-starter-test", "spring-modulith-bom"} {
+			if count := strings.Count(pom, "<artifactId>"+artifact+"</artifactId>"); count != 1 {
+				t.Errorf("%s occurs %d times, want once:\n%s", artifact, count, pom)
+			}
+		}
+		if strings.Count(pom, "<spring-modulith.version>"+springModulithVersion+"</spring-modulith.version>") != 1 {
+			t.Errorf("Spring Modulith version property is missing or duplicated:\n%s", pom)
+		}
+		verification := readArchiveFile(t, archive, "demo/src/test/java/com/example/demo/ModularityTests.java")
+		if !strings.Contains(verification, "ApplicationModules.of(Application.class).verify()") {
+			t.Errorf("module verification test is invalid:\n%s", verification)
+		}
+		smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
+	})
+
+	t.Run("spring-cloud-aws", func(t *testing.T) {
+		configuration := minimalConfiguration()
+		configuration.Features = []string{"spring-cloud-aws", "spring-cloud-aws"}
+		filePath, archive := generateProjectArchive(t, configuration)
+		pom := readArchiveFile(t, archive, "demo/pom.xml")
+		for _, artifact := range []string{"spring-cloud-aws-starter", "spring-cloud-aws-dependencies"} {
+			if count := strings.Count(pom, "<artifactId>"+artifact+"</artifactId>"); count != 1 {
+				t.Errorf("%s occurs %d times, want once:\n%s", artifact, count, pom)
+			}
+		}
+		if strings.Count(pom, "<spring-cloud-aws.version>"+springCloudAWSVersion+"</spring-cloud-aws.version>") != 1 {
+			t.Errorf("Spring Cloud AWS version property is missing or duplicated:\n%s", pom)
+		}
+		properties := readArchiveFile(t, archive, "demo/src/main/resources/application.properties")
+		if !strings.Contains(properties, "spring.cloud.aws.region.static=${AWS_REGION:us-east-1}") || strings.Contains(properties, "access-key") || strings.Contains(properties, "secret-key") {
+			t.Errorf("Spring Cloud AWS local configuration is unsafe or incomplete:\n%s", properties)
+		}
+		smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
+	})
+
+	t.Run("none", func(t *testing.T) {
+		configuration := minimalConfiguration()
+		_, archive := generateProjectArchive(t, configuration)
+		pom := readArchiveFile(t, archive, "demo/pom.xml")
+		for _, snippet := range []string{"spring-boot-starter-mail", "spring-boot-docker-compose", "spring-modulith", "spring-cloud-aws"} {
+			if strings.Contains(pom, snippet) {
+				t.Errorf("minimal build unexpectedly contains %q:\n%s", snippet, pom)
+			}
+		}
+		properties := readArchiveFile(t, archive, "demo/src/main/resources/application.properties")
+		for _, prefix := range []string{"spring.mail.", "spring.cloud.aws.", "spring.docker.compose."} {
+			if strings.Contains(properties, prefix) {
+				t.Errorf("minimal properties unexpectedly contain %q:\n%s", prefix, properties)
+			}
+		}
+		assertArchiveExcludes(t, archive, "demo/compose.yaml", "demo/src/test/java/com/example/demo/ModularityTests.java")
+	})
+
+	t.Run("all", func(t *testing.T) {
+		configuration := minimalConfiguration()
+		configuration.Features = []string{"email", "docker-compose", "spring-modulith", "spring-cloud-aws"}
+		filePath, archive := generateProjectArchive(t, configuration)
+		pom := readArchiveFile(t, archive, "demo/pom.xml")
+		for _, artifact := range []string{"spring-boot-starter-mail", "spring-boot-docker-compose", "spring-modulith-starter-core", "spring-modulith-starter-test", "spring-modulith-bom", "spring-cloud-aws-starter", "spring-cloud-aws-dependencies"} {
+			if count := strings.Count(pom, "<artifactId>"+artifact+"</artifactId>"); count != 1 {
+				t.Errorf("full-feature build contains %d copies of %s, want one", count, artifact)
+			}
+		}
+		smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
+	})
 }
 
 func assertNoArchivePrefix(t *testing.T, archive *zip.ReadCloser, prefix string) {

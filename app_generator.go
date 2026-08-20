@@ -121,6 +121,9 @@ type projectMetadataTemplateData struct {
 	FlywayEnabled       bool
 	LiquibaseEnabled    bool
 	OAuthResourceServer bool
+	MailEnabled         bool
+	CloudAWSEnabled     bool
+	DockerComposeH2     bool
 }
 
 type migrationTemplateData struct {
@@ -131,6 +134,10 @@ type securityTemplateData struct {
 	PackageName   string
 	PublicPath    string
 	ProtectedPath string
+}
+
+type composeTemplateData struct {
+	DatabaseName string
 }
 
 type projectFile struct {
@@ -258,6 +265,9 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 	metadata.FlywayEnabled = configuration.Database.MigrationTool == "flyway"
 	metadata.LiquibaseEnabled = configuration.Database.MigrationTool == "liquibase"
 	metadata.OAuthResourceServer = configuration.Security.Mode == "oauth-resource-server"
+	metadata.MailEnabled = contains(configuration.Features, "email")
+	metadata.CloudAWSEnabled = contains(configuration.Features, "spring-cloud-aws")
+	metadata.DockerComposeH2 = contains(configuration.Features, "docker-compose") && configuration.Database.Engine == "h2"
 	if configuration.Project.BuildTool == "maven" {
 		metadata.BuildCommand = "./mvnw test"
 		metadata.RunCommand = "./mvnw spring-boot:run"
@@ -301,6 +311,11 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		return err
 	}
 	files = append(files, securityFiles...)
+	optionalFeatureFiles, err := generateOptionalFeatureFiles(projectDirectory, packagePath, configuration)
+	if err != nil {
+		return err
+	}
+	files = append(files, optionalFeatureFiles...)
 	buildFiles, err := generateBuildFiles(projectDirectory, configuration)
 	if err != nil {
 		return err
@@ -312,6 +327,25 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		}
 	}
 	return nil
+}
+
+func generateOptionalFeatureFiles(projectDirectory string, packagePath string, configuration generatorConfiguration) ([]projectFile, error) {
+	var files []projectFile
+	if contains(configuration.Features, "docker-compose") && configuration.Database.Engine != "h2" {
+		compose, err := renderProjectTemplate("compose-"+configuration.Database.Engine+".yaml.tmpl", composeTemplateData{DatabaseName: sanitizeArtifactID(configuration.Project.ArtifactID)})
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, projectFile{projectDirectory + "/compose.yaml", compose, 0o644})
+	}
+	if contains(configuration.Features, "spring-modulith") {
+		verificationTest, err := renderProjectTemplate("ModularityTests.java.tmpl", applicationTemplateData{PackageName: configuration.Project.PackageName})
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, projectFile{projectDirectory + "/src/test/java/" + packagePath + "/ModularityTests.java", verificationTest, 0o644})
+	}
+	return files, nil
 }
 
 func generateSecurityFiles(projectDirectory string, packagePath string, configuration generatorConfiguration) ([]projectFile, error) {
@@ -547,6 +581,7 @@ func projectDependencies(configuration generatorConfiguration) []mavenDependency
 	}
 	if contains(configuration.Features, "spring-modulith") {
 		dependencies = append(dependencies, mavenDependency{"org.springframework.modulith", "spring-modulith-starter-core", "", false})
+		dependencies = append(dependencies, mavenDependency{"org.springframework.modulith", "spring-modulith-starter-test", "test", false})
 	}
 	if contains(configuration.Features, "spring-cloud-aws") {
 		dependencies = append(dependencies, mavenDependency{"io.awspring.cloud", "spring-cloud-aws-starter", "", false})
