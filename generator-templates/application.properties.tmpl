@@ -5,3 +5,9 @@ spring.datasource.driver-class-name={{ .DatasourceDriver }}
 spring.datasource.username=${DATABASE_USERNAME}
 spring.datasource.password=${DATABASE_PASSWORD}
 {{- end }}
+{{- if .FlywayEnabled }}
+spring.flyway.locations=classpath:db/migration
+{{- end }}
+{{- if .LiquibaseEnabled }}
+spring.liquibase.change-log=classpath:db/changelog/db.changelog-master.xml
+{{- end }}
