@@ -41,6 +41,8 @@ jacoco {
     toolVersion = {{ quote .JacocoVersion }}
 }
 
+def jacocoExclusions = ['**/Application.class']
+
 tasks.named('jacocoTestReport') {
     dependsOn tasks.named('test')
     reports {
@@ -48,6 +50,29 @@ tasks.named('jacocoTestReport') {
         html.required = true
         csv.required = false
     }
+    classDirectories.setFrom(files(classDirectories.files.collect {
+        fileTree(dir: it, exclude: jacocoExclusions)
+    }))
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+    dependsOn tasks.named('test')
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = {{ .JacocoMinimumCoverage }}
+            }
+        }
+    }
+    classDirectories.setFrom(files(classDirectories.files.collect {
+        fileTree(dir: it, exclude: jacocoExclusions)
+    }))
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
 }
 
 gitProperties {

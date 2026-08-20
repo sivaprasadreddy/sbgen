@@ -292,6 +292,31 @@ func TestGeneratedProjectSupportFiles(t *testing.T) {
 	})
 }
 
+func TestGeneratedBuildsEnforceSeventyPercentLineCoverage(t *testing.T) {
+	for _, buildTool := range []string{"maven", "gradle-groovy", "gradle-kotlin"} {
+		t.Run(buildTool, func(t *testing.T) {
+			configuration := minimalConfiguration()
+			configuration.Project.BuildTool = buildTool
+			filePath, archive := generateProjectArchive(t, configuration)
+			buildFileName := map[string]string{"maven": "pom.xml", "gradle-groovy": "build.gradle", "gradle-kotlin": "build.gradle.kts"}[buildTool]
+			buildFile := readArchiveFile(t, archive, "demo/"+buildFileName)
+			for _, snippet := range []string{"COVEREDRATIO", jacocoMinimumCoverage, "jacocoTestCoverageVerification"} {
+				if buildTool == "maven" && snippet == "jacocoTestCoverageVerification" {
+					snippet = "<goal>check</goal>"
+				}
+				if !strings.Contains(buildFile, snippet) {
+					t.Errorf("%s coverage configuration is missing %q:\n%s", buildTool, snippet, buildFile)
+				}
+			}
+			if buildTool == "maven" {
+				runGeneratedProjectCommand(t, filePath, buildTool, "verify")
+			} else {
+				runGeneratedProjectCommand(t, filePath, buildTool, "check")
+			}
+		})
+	}
+}
+
 func TestWrapperDirectoriesAreCopiedVerbatim(t *testing.T) {
 	tests := []struct {
 		buildTool       string

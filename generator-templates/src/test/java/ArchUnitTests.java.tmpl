@@ -11,9 +11,6 @@ class ArchUnitTests {
     void applicationClassesStayInsideTheApplicationPackage() {
         var applicationClasses = new ClassFileImporter().importPackagesOf(Application.class);
 
-        classes()
-                .should()
-                .resideInAPackage("{{ .PackageName }}..")
-                .check(applicationClasses);
+        classes().should().resideInAPackage("{{ .PackageName }}..").check(applicationClasses);
     }
 }

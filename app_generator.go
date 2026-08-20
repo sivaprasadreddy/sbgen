@@ -29,6 +29,7 @@ const (
 	gradleGitPropsVersion = "4.0.1"
 	palantirFormatVersion = "2.96.0"
 	jacocoVersion         = "0.8.15"
+	jacocoMinimumCoverage = "0.70"
 	gitCommitIDVersion    = "9.0.2"
 	springdocVersion      = "3.1.0"
 	archunitVersion       = "1.4.2"
@@ -117,6 +118,7 @@ type pomTemplateData struct {
 	PalantirFormatVersion string
 	JacocoVersion         string
 	GitCommitIDVersion    string
+	JacocoMinimumCoverage string
 }
 
 type gradleTemplateData struct {
@@ -133,6 +135,7 @@ type gradleTemplateData struct {
 	PalantirFormatVersion string
 	JacocoVersion         string
 	GitPropertiesVersion  string
+	JacocoMinimumCoverage string
 }
 
 type applicationTemplateData struct {
@@ -573,6 +576,7 @@ func generateBuildFiles(projectDirectory string, configuration generatorConfigur
 		PalantirFormatVersion: palantirFormatVersion,
 		JacocoVersion:         jacocoVersion,
 		GitPropertiesVersion:  gradleGitPropsVersion,
+		JacocoMinimumCoverage: jacocoMinimumCoverage,
 	}
 	buildTemplate := "build.gradle.tmpl"
 	settingsTemplate := "settings.gradle.tmpl"
@@ -653,6 +657,7 @@ func generatePOM(configuration generatorConfiguration) (string, error) {
 		PalantirFormatVersion: palantirFormatVersion,
 		JacocoVersion:         jacocoVersion,
 		GitCommitIDVersion:    gitCommitIDVersion,
+		JacocoMinimumCoverage: jacocoMinimumCoverage,
 	})
 }
 
