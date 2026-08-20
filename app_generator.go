@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -80,16 +81,15 @@ type applicationTemplateData struct {
 	PackageName string
 }
 
+type projectArchiveWriter func(*zip.Writer, string, generatorConfiguration) error
+
 func (s *ConfigService) GenerateProject(configurationJSON string) (filePath string, err error) {
 	var configuration generatorConfiguration
 	if err := json.Unmarshal([]byte(configurationJSON), &configuration); err != nil {
 		return "", fmt.Errorf("invalid project configuration: %w", err)
 	}
-	if strings.TrimSpace(configuration.Project.GroupID) == "" || strings.TrimSpace(configuration.Project.ArtifactID) == "" {
-		return "", fmt.Errorf("group ID and artifact ID are required")
-	}
-	if !javaPackagePattern.MatchString(configuration.Project.PackageName) {
-		return "", fmt.Errorf("invalid Java package name %q", configuration.Project.PackageName)
+	if err := validateConfiguration(configuration); err != nil {
+		return "", err
 	}
 
 	homeDirectory, err := os.UserHomeDir()
@@ -101,6 +101,61 @@ func (s *ConfigService) GenerateProject(configurationJSON string) (filePath stri
 		return "", fmt.Errorf("create downloads directory: %w", err)
 	}
 
+	return generateProjectZIP(downloadsDirectory, configuration, writeProjectArchive)
+}
+
+func validateConfiguration(configuration generatorConfiguration) error {
+	if strings.TrimSpace(configuration.Project.GroupID) == "" {
+		return fmt.Errorf("group ID is required")
+	}
+	if strings.TrimSpace(configuration.Project.ArtifactID) == "" {
+		return fmt.Errorf("artifact ID is required")
+	}
+	if !javaPackagePattern.MatchString(configuration.Project.PackageName) {
+		return fmt.Errorf("invalid Java package name %q", configuration.Project.PackageName)
+	}
+	if !contains([]string{"maven", "gradle-groovy", "gradle-kotlin"}, configuration.Project.BuildTool) {
+		return fmt.Errorf("unsupported build tool %q", configuration.Project.BuildTool)
+	}
+	if !contains([]string{"none", "thymeleaf", "angular"}, configuration.Frontend.Type) {
+		return fmt.Errorf("unsupported frontend type %q", configuration.Frontend.Type)
+	}
+	if configuration.Frontend.CSSFramework != nil && !contains([]string{"tailwind", "bootstrap"}, *configuration.Frontend.CSSFramework) {
+		return fmt.Errorf("unsupported CSS framework %q", *configuration.Frontend.CSSFramework)
+	}
+	if configuration.Frontend.Type != "none" && configuration.Frontend.CSSFramework == nil {
+		return fmt.Errorf("CSS framework is required for %s frontend", configuration.Frontend.Type)
+	}
+	if !contains([]string{"postgresql", "mysql", "mariadb", "h2"}, configuration.Database.Engine) {
+		return fmt.Errorf("unsupported database engine %q", configuration.Database.Engine)
+	}
+	if !contains([]string{"none", "flyway", "liquibase"}, configuration.Database.MigrationTool) {
+		return fmt.Errorf("unsupported migration tool %q", configuration.Database.MigrationTool)
+	}
+	if !contains([]string{"spring-data-jpa", "spring-jdbc-client"}, configuration.Database.PersistenceFramework) {
+		return fmt.Errorf("unsupported persistence framework %q", configuration.Database.PersistenceFramework)
+	}
+	if !contains([]string{"none", "http-session", "oauth-resource-server"}, configuration.Security.Mode) {
+		return fmt.Errorf("unsupported security mode %q", configuration.Security.Mode)
+	}
+	if configuration.Security.Mode == "http-session" && configuration.Frontend.Type != "thymeleaf" {
+		return fmt.Errorf("HTTP-session security requires the Thymeleaf frontend")
+	}
+	if configuration.Security.Mode == "oauth-resource-server" && configuration.Frontend.Type != "angular" {
+		return fmt.Errorf("OAuth resource-server security requires the Angular frontend")
+	}
+	if configuration.Security.SpringSession && configuration.Security.Mode != "http-session" {
+		return fmt.Errorf("Spring Session requires HTTP-session security")
+	}
+	for _, feature := range configuration.Features {
+		if !contains([]string{"email", "docker-compose", "spring-modulith", "spring-cloud-aws"}, feature) {
+			return fmt.Errorf("unsupported feature %q", feature)
+		}
+	}
+	return nil
+}
+
+func generateProjectZIP(downloadsDirectory string, configuration generatorConfiguration, writeArchive projectArchiveWriter) (filePath string, err error) {
 	safeArtifactID := sanitizeArtifactID(configuration.Project.ArtifactID)
 	filePath, output, err := createAvailableZIP(downloadsDirectory, safeArtifactID)
 	if err != nil {
@@ -118,24 +173,7 @@ func (s *ConfigService) GenerateProject(configurationJSON string) (filePath stri
 	}()
 
 	archive := zip.NewWriter(output)
-	projectDirectory := safeArtifactID
-	pomXML, err := generatePOM(configuration)
-	if err != nil {
-		_ = archive.Close()
-		return "", err
-	}
-	applicationJava, err := generateApplicationClass(configuration.Project.PackageName)
-	if err != nil {
-		_ = archive.Close()
-		return "", err
-	}
-
-	if err = writeZIPFile(archive, projectDirectory+"/pom.xml", pomXML); err != nil {
-		_ = archive.Close()
-		return "", err
-	}
-	packagePath := strings.ReplaceAll(configuration.Project.PackageName, ".", "/")
-	if err = writeZIPFile(archive, projectDirectory+"/src/main/java/"+packagePath+"/Application.java", applicationJava); err != nil {
+	if err = writeArchive(archive, safeArtifactID, configuration); err != nil {
 		_ = archive.Close()
 		return "", err
 	}
@@ -145,6 +183,22 @@ func (s *ConfigService) GenerateProject(configurationJSON string) (filePath stri
 
 	completed = true
 	return filePath, nil
+}
+
+func writeProjectArchive(archive *zip.Writer, projectDirectory string, configuration generatorConfiguration) error {
+	pomXML, err := generatePOM(configuration)
+	if err != nil {
+		return err
+	}
+	applicationJava, err := generateApplicationClass(configuration.Project.PackageName)
+	if err != nil {
+		return err
+	}
+	if err := writeZIPFile(archive, projectDirectory+"/pom.xml", pomXML); err != nil {
+		return err
+	}
+	packagePath := strings.ReplaceAll(configuration.Project.PackageName, ".", "/")
+	return writeZIPFile(archive, projectDirectory+"/src/main/java/"+packagePath+"/Application.java", applicationJava)
 }
 
 func generatePOM(configuration generatorConfiguration) (string, error) {
@@ -233,6 +287,9 @@ func renderProjectTemplate(name string, data any) (string, error) {
 }
 
 func writeZIPFile(archive *zip.Writer, name string, content string) error {
+	if err := validateZIPEntryName(name); err != nil {
+		return err
+	}
 	header := &zip.FileHeader{Name: name, Method: zip.Deflate}
 	header.SetMode(0o644)
 	entry, err := archive.CreateHeader(header)
@@ -241,6 +298,14 @@ func writeZIPFile(archive *zip.Writer, name string, content string) error {
 	}
 	if _, err := io.Copy(entry, bytes.NewBufferString(content)); err != nil {
 		return fmt.Errorf("write %s to project archive: %w", name, err)
+	}
+	return nil
+}
+
+func validateZIPEntryName(name string) error {
+	cleanName := path.Clean(name)
+	if name == "" || name != cleanName || cleanName == "." || path.IsAbs(cleanName) || cleanName == ".." || strings.HasPrefix(cleanName, "../") || strings.Contains(name, `\`) {
+		return fmt.Errorf("unsafe project archive path %q", name)
 	}
 	return nil
 }
