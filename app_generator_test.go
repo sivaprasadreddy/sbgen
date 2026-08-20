@@ -495,6 +495,116 @@ func TestDatabaseMigrationMatrix(t *testing.T) {
 	}
 }
 
+func TestSecurityModesGenerateDependenciesConfigurationAndProtectedRoutes(t *testing.T) {
+	tests := []struct {
+		name            string
+		frontend        string
+		mode            string
+		present         []string
+		absent          []string
+		configSnippets  []string
+		publicPath      string
+		protectedPath   string
+		propertySnippet string
+	}{
+		{
+			name:     "none",
+			frontend: "none",
+			mode:     "none",
+			absent: []string{
+				"org.springframework.boot:spring-boot-starter-security",
+				"org.springframework.boot:spring-boot-starter-oauth2-resource-server",
+				"org.springframework.boot:spring-boot-starter-webmvc-test",
+			},
+		},
+		{
+			name:     "Thymeleaf HTTP session",
+			frontend: "thymeleaf",
+			mode:     "http-session",
+			present: []string{
+				"org.springframework.boot:spring-boot-starter-security",
+				"org.springframework.boot:spring-boot-starter-webmvc-test",
+			},
+			absent:   []string{"org.springframework.boot:spring-boot-starter-oauth2-resource-server"},
+			configSnippets: []string{
+				`.requestMatchers("/public").permitAll()`,
+				".anyRequest().authenticated()",
+				".formLogin(Customizer.withDefaults())",
+			},
+			publicPath:    "/public",
+			protectedPath: "/protected",
+		},
+		{
+			name:     "Angular OAuth resource server",
+			frontend: "angular",
+			mode:     "oauth-resource-server",
+			present: []string{
+				"org.springframework.boot:spring-boot-starter-security",
+				"org.springframework.boot:spring-boot-starter-oauth2-resource-server",
+				"org.springframework.boot:spring-boot-starter-webmvc-test",
+			},
+			configSnippets: []string{
+				"SessionCreationPolicy.STATELESS",
+				".csrf(AbstractHttpConfigurer::disable)",
+				`.requestMatchers("/api/public").permitAll()`,
+				".oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))",
+			},
+			publicPath:      "/api/public",
+			protectedPath:   "/api/protected",
+			propertySnippet: "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=${OAUTH2_JWK_SET_URI:http://localhost:9000/oauth2/jwks}",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			configuration := minimalConfiguration()
+			configuration.Frontend.Type = test.frontend
+			if test.frontend != "none" {
+				cssFramework := "tailwind"
+				configuration.Frontend.CSSFramework = &cssFramework
+			}
+			configuration.Security.Mode = test.mode
+			filePath, archive := generateProjectArchive(t, configuration)
+
+			pom := readArchiveFile(t, archive, "demo/pom.xml")
+			assertBuildDependencies(t, "maven", pom, dependencyExpectation{present: test.present, absent: test.absent})
+			securityConfigPath := "demo/src/main/java/com/example/demo/config/SecurityConfig.java"
+			endpointsPath := "demo/src/main/java/com/example/demo/web/SecurityEndpoints.java"
+			endpointTestsPath := "demo/src/test/java/com/example/demo/web/SecurityEndpointsTests.java"
+			properties := readArchiveFile(t, archive, "demo/src/main/resources/application.properties")
+
+			if test.mode == "none" {
+				assertArchiveExcludes(t, archive, securityConfigPath, endpointsPath, endpointTestsPath)
+				if strings.Contains(properties, "spring.security.oauth2") {
+					t.Errorf("unsecured project contains OAuth configuration:\n%s", properties)
+				}
+				return
+			}
+
+			assertArchiveContains(t, archive, securityConfigPath, endpointsPath, endpointTestsPath)
+			securityConfig := readArchiveFile(t, archive, securityConfigPath)
+			for _, snippet := range test.configSnippets {
+				if !strings.Contains(securityConfig, snippet) {
+					t.Errorf("%s security configuration is missing %q:\n%s", test.mode, snippet, securityConfig)
+				}
+			}
+			endpoints := readArchiveFile(t, archive, endpointsPath)
+			if !strings.Contains(endpoints, `@GetMapping("`+test.publicPath+`")`) || !strings.Contains(endpoints, `@GetMapping("`+test.protectedPath+`")`) {
+				t.Errorf("%s endpoints do not expose the intended routes:\n%s", test.mode, endpoints)
+			}
+			if test.propertySnippet == "" {
+				if strings.Contains(properties, "spring.security.oauth2") {
+					t.Errorf("form-login project contains OAuth properties:\n%s", properties)
+				}
+			} else if !strings.Contains(properties, test.propertySnippet) {
+				t.Errorf("OAuth resource-server property is missing:\n%s", properties)
+			}
+
+			smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
+		})
+	}
+}
+
 func assertNoArchivePrefix(t *testing.T, archive *zip.ReadCloser, prefix string) {
 	t.Helper()
 	for _, name := range listArchiveFiles(archive) {

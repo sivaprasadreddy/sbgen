@@ -11,3 +11,6 @@ spring.flyway.locations=classpath:db/migration
 {{- if .LiquibaseEnabled }}
 spring.liquibase.change-log=classpath:db/changelog/db.changelog-master.xml
 {{- end }}
+{{- if .OAuthResourceServer }}
+spring.security.oauth2.resourceserver.jwt.jwk-set-uri=${OAUTH2_JWK_SET_URI:http://localhost:9000/oauth2/jwks}
+{{- end }}

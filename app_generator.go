@@ -110,20 +110,27 @@ type applicationTemplateData struct {
 }
 
 type projectMetadataTemplateData struct {
-	GroupID            string
-	ArtifactID         string
-	PackageName        string
-	BuildCommand       string
-	RunCommand         string
-	DatasourceURL      string
-	DatasourceDriver   string
-	ExternalDatasource bool
-	FlywayEnabled      bool
-	LiquibaseEnabled   bool
+	GroupID             string
+	ArtifactID          string
+	PackageName         string
+	BuildCommand        string
+	RunCommand          string
+	DatasourceURL       string
+	DatasourceDriver    string
+	ExternalDatasource  bool
+	FlywayEnabled       bool
+	LiquibaseEnabled    bool
+	OAuthResourceServer bool
 }
 
 type migrationTemplateData struct {
 	IdentityClause string
+}
+
+type securityTemplateData struct {
+	PackageName   string
+	PublicPath    string
+	ProtectedPath string
 }
 
 type projectFile struct {
@@ -250,6 +257,7 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 	metadata.DatasourceURL, metadata.DatasourceDriver, metadata.ExternalDatasource = datasourceConfiguration(configuration.Database.Engine, sanitizeArtifactID(configuration.Project.ArtifactID))
 	metadata.FlywayEnabled = configuration.Database.MigrationTool == "flyway"
 	metadata.LiquibaseEnabled = configuration.Database.MigrationTool == "liquibase"
+	metadata.OAuthResourceServer = configuration.Security.Mode == "oauth-resource-server"
 	if configuration.Project.BuildTool == "maven" {
 		metadata.BuildCommand = "./mvnw test"
 		metadata.RunCommand = "./mvnw spring-boot:run"
@@ -288,6 +296,11 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		return err
 	}
 	files = append(files, migrationFiles...)
+	securityFiles, err := generateSecurityFiles(projectDirectory, packagePath, configuration)
+	if err != nil {
+		return err
+	}
+	files = append(files, securityFiles...)
 	buildFiles, err := generateBuildFiles(projectDirectory, configuration)
 	if err != nil {
 		return err
@@ -299,6 +312,42 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		}
 	}
 	return nil
+}
+
+func generateSecurityFiles(projectDirectory string, packagePath string, configuration generatorConfiguration) ([]projectFile, error) {
+	if configuration.Security.Mode == "none" {
+		return nil, nil
+	}
+	data := securityTemplateData{
+		PackageName:   configuration.Project.PackageName,
+		PublicPath:    "/public",
+		ProtectedPath: "/protected",
+	}
+	configurationTemplate := "FormLoginSecurityConfig.java.tmpl"
+	testTemplate := "FormLoginSecurityEndpointsTests.java.tmpl"
+	if configuration.Security.Mode == "oauth-resource-server" {
+		data.PublicPath = "/api/public"
+		data.ProtectedPath = "/api/protected"
+		configurationTemplate = "OAuthResourceServerSecurityConfig.java.tmpl"
+		testTemplate = "OAuthSecurityEndpointsTests.java.tmpl"
+	}
+	securityConfiguration, err := renderProjectTemplate(configurationTemplate, data)
+	if err != nil {
+		return nil, err
+	}
+	endpoints, err := renderProjectTemplate("SecurityEndpoints.java.tmpl", data)
+	if err != nil {
+		return nil, err
+	}
+	endpointTests, err := renderProjectTemplate(testTemplate, data)
+	if err != nil {
+		return nil, err
+	}
+	return []projectFile{
+		{projectDirectory + "/src/main/java/" + packagePath + "/config/SecurityConfig.java", securityConfiguration, 0o644},
+		{projectDirectory + "/src/main/java/" + packagePath + "/web/SecurityEndpoints.java", endpoints, 0o644},
+		{projectDirectory + "/src/test/java/" + packagePath + "/web/SecurityEndpointsTests.java", endpointTests, 0o644},
+	}, nil
 }
 
 func generateMigrationFiles(projectDirectory string, configuration generatorConfiguration) ([]projectFile, error) {
@@ -484,6 +533,7 @@ func projectDependencies(configuration generatorConfiguration) []mavenDependency
 
 	if configuration.Security.Mode != "none" {
 		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-security", "", false})
+		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-webmvc-test", "test", false})
 	}
 	if configuration.Security.Mode == "oauth-resource-server" {
 		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-oauth2-resource-server", "", false})
