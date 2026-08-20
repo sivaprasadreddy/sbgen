@@ -125,7 +125,8 @@ type gradleTemplateData struct {
 }
 
 type applicationTemplateData struct {
-	PackageName string
+	PackageName    string
+	Testcontainers bool
 }
 
 type projectMetadataTemplateData struct {
@@ -151,9 +152,8 @@ type migrationTemplateData struct {
 }
 
 type securityTemplateData struct {
-	PackageName   string
-	PublicPath    string
-	ProtectedPath string
+	PackageName string
+	PublicPath  string
 }
 
 type composeTemplateData struct {
@@ -296,6 +296,13 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 	if err != nil {
 		return err
 	}
+	baseIT, err := renderProjectTemplate("src/test/java/BaseIT.java.tmpl", applicationTemplateData{
+		PackageName:    configuration.Project.PackageName,
+		Testcontainers: configuration.Database.Engine != "h2" || contains(configuration.Features, "spring-cloud-aws"),
+	})
+	if err != nil {
+		return err
+	}
 	metadata := projectMetadataTemplateData{
 		GroupID:     configuration.Project.GroupID,
 		ArtifactID:  configuration.Project.ArtifactID,
@@ -341,6 +348,7 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		{projectDirectory + "/src/main/java/" + packagePath + "/Application.java", applicationJava, 0o644},
 		{projectDirectory + "/src/main/resources/application.properties", applicationProperties, 0o644},
 		{projectDirectory + "/src/test/java/" + packagePath + "/ApplicationTests.java", applicationTest, 0o644},
+		{projectDirectory + "/src/test/java/" + packagePath + "/BaseIT.java", baseIT, 0o644},
 		{projectDirectory + "/src/test/resources/application-test.properties", testProperties, 0o644},
 		{projectDirectory + "/.gitignore", gitignore, 0o644},
 		{projectDirectory + "/README.md", readme, 0o644},
@@ -463,35 +471,19 @@ func generateSecurityFiles(projectDirectory string, packagePath string, configur
 		return nil, nil
 	}
 	data := securityTemplateData{
-		PackageName:   configuration.Project.PackageName,
-		PublicPath:    "/public",
-		ProtectedPath: "/protected",
+		PackageName: configuration.Project.PackageName,
+		PublicPath:  "/public",
 	}
 	configurationTemplate := "src/main/java/config/FormLoginSecurityConfig.java.tmpl"
-	testTemplate := "src/test/java/web/FormLoginSecurityEndpointsTests.java.tmpl"
 	if configuration.Security.Mode == "oauth-resource-server" {
 		data.PublicPath = "/api/public"
-		data.ProtectedPath = "/api/protected"
 		configurationTemplate = "src/main/java/config/OAuthResourceServerSecurityConfig.java.tmpl"
-		testTemplate = "src/test/java/web/OAuthSecurityEndpointsTests.java.tmpl"
 	}
 	securityConfiguration, err := renderProjectTemplate(configurationTemplate, data)
 	if err != nil {
 		return nil, err
 	}
-	endpoints, err := renderProjectTemplate("src/main/java/web/SecurityEndpoints.java.tmpl", data)
-	if err != nil {
-		return nil, err
-	}
-	endpointTests, err := renderProjectTemplate(testTemplate, data)
-	if err != nil {
-		return nil, err
-	}
-	return []projectFile{
-		{projectDirectory + "/src/main/java/" + packagePath + "/config/SecurityConfig.java", securityConfiguration, 0o644},
-		{projectDirectory + "/src/main/java/" + packagePath + "/web/SecurityEndpoints.java", endpoints, 0o644},
-		{projectDirectory + "/src/test/java/" + packagePath + "/web/SecurityEndpointsTests.java", endpointTests, 0o644},
-	}, nil
+	return []projectFile{{projectDirectory + "/src/main/java/" + packagePath + "/config/SecurityConfig.java", securityConfiguration, 0o644}}, nil
 }
 
 func generateMigrationFiles(projectDirectory string, configuration generatorConfiguration) ([]projectFile, error) {

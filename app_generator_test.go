@@ -88,6 +88,7 @@ func TestMinimalGeneratedApplication(t *testing.T) {
 		"demo/src/main/java/com/example/demo/Application.java",
 		"demo/src/main/resources/application.properties",
 		"demo/src/test/java/com/example/demo/ApplicationTests.java",
+		"demo/src/test/java/com/example/demo/BaseIT.java",
 		"demo/src/test/resources/application-test.properties",
 		"demo/.gitignore",
 		"demo/README.md",
@@ -602,7 +603,7 @@ func TestDatabaseMigrationMatrix(t *testing.T) {
 	}
 }
 
-func TestSecurityModesGenerateDependenciesConfigurationAndProtectedRoutes(t *testing.T) {
+func TestSecurityModesGenerateDependenciesAndConfiguration(t *testing.T) {
 	tests := []struct {
 		name            string
 		frontend        string
@@ -610,8 +611,6 @@ func TestSecurityModesGenerateDependenciesConfigurationAndProtectedRoutes(t *tes
 		present         []string
 		absent          []string
 		configSnippets  []string
-		publicPath      string
-		protectedPath   string
 		propertySnippet string
 	}{
 		{
@@ -638,8 +637,6 @@ func TestSecurityModesGenerateDependenciesConfigurationAndProtectedRoutes(t *tes
 				".anyRequest().authenticated()",
 				".formLogin(Customizer.withDefaults())",
 			},
-			publicPath:    "/public",
-			protectedPath: "/protected",
 		},
 		{
 			name:     "Angular OAuth resource server",
@@ -656,8 +653,6 @@ func TestSecurityModesGenerateDependenciesConfigurationAndProtectedRoutes(t *tes
 				`.requestMatchers("/api/public").permitAll()`,
 				".oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))",
 			},
-			publicPath:      "/api/public",
-			protectedPath:   "/api/protected",
 			propertySnippet: "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=${OAUTH2_JWK_SET_URI:http://localhost:9000/oauth2/jwks}",
 		},
 	}
@@ -688,16 +683,13 @@ func TestSecurityModesGenerateDependenciesConfigurationAndProtectedRoutes(t *tes
 				return
 			}
 
-			assertArchiveContains(t, archive, securityConfigPath, endpointsPath, endpointTestsPath)
+			assertArchiveContains(t, archive, securityConfigPath)
+			assertArchiveExcludes(t, archive, endpointsPath, endpointTestsPath)
 			securityConfig := readArchiveFile(t, archive, securityConfigPath)
 			for _, snippet := range test.configSnippets {
 				if !strings.Contains(securityConfig, snippet) {
 					t.Errorf("%s security configuration is missing %q:\n%s", test.mode, snippet, securityConfig)
 				}
-			}
-			endpoints := readArchiveFile(t, archive, endpointsPath)
-			if !strings.Contains(endpoints, `@GetMapping("`+test.publicPath+`")`) || !strings.Contains(endpoints, `@GetMapping("`+test.protectedPath+`")`) {
-				t.Errorf("%s endpoints do not expose the intended routes:\n%s", test.mode, endpoints)
 			}
 			if test.propertySnippet == "" {
 				if strings.Contains(properties, "spring.security.oauth2") {
