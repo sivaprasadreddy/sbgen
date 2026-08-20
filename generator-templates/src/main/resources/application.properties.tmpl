@@ -26,3 +26,7 @@ spring.cloud.aws.region.static=${AWS_REGION:us-east-1}
 {{- if .DockerComposeH2 }}
 spring.docker.compose.enabled=false
 {{- end }}
+{{- if .SpringdocEnabled }}
+springdoc.swagger-ui.enabled=false
+springdoc.paths-to-match=/api/**
+{{- end }}

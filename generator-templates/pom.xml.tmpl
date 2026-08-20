@@ -32,6 +32,9 @@
     <dependency>
       <groupId>{{ .GroupID }}</groupId>
       <artifactId>{{ .ArtifactID }}</artifactId>
+{{- if .Version }}
+      <version>{{ .Version }}</version>
+{{- end }}
 {{- if .Scope }}
       <scope>{{ .Scope }}</scope>
 {{- end }}

@@ -14,6 +14,17 @@ services:
       timeout: 5s
       retries: 5
 {{ end }}
+{{ if .Floci }}
+  floci:
+    image: floci/floci:latest-compat
+    ports:
+      - "4566:4566"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./src/test/resources/floci-init/ready.d:/etc/floci/init/ready.d:ro
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
+{{ end }}
 {{ if .MySQL }}
   mysql:
     image: mysql:8.4

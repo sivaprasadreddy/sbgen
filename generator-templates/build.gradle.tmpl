@@ -28,7 +28,7 @@ dependencies {
     implementation platform('io.awspring.cloud:spring-cloud-aws-dependencies:{{ .SpringCloudAWSVersion }}')
 {{- end }}
 {{- range .Dependencies }}
-    {{ .GradleConfiguration }} {{ quote .Coordinate }}{{ if .Optional }} // optional runtime dependency{{ end }}
+    {{ .GradleConfiguration }} {{ quote .Coordinate }}{{ if .Version }} + ":" + {{ quote .Version }}{{ end }}{{ if .Optional }} // optional runtime dependency{{ end }}
 {{- end }}
 }
 

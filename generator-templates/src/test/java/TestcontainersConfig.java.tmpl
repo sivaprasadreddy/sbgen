@@ -1,0 +1,62 @@
+package {{ .PackageName }};
+
+{{ if or .PostgreSQL .MySQL .MariaDB }}
+import static org.testcontainers.utility.DockerImageName.parse;
+{{ end }}
+
+{{ if .Floci }}
+import io.floci.testcontainers.FlociContainer;
+{{ end }}
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Bean;
+{{ if .Floci }}
+import org.testcontainers.containers.BindMode;
+{{ end }}
+{{ if .MariaDB }}
+import org.testcontainers.mariadb.MariaDBContainer;
+{{ end }}
+{{ if .MySQL }}
+import org.testcontainers.mysql.MySQLContainer;
+{{ end }}
+{{ if .PostgreSQL }}
+import org.testcontainers.postgresql.PostgreSQLContainer;
+{{ end }}
+
+@TestConfiguration(proxyBeanMethods = false)
+class TestcontainersConfig {
+{{ if .PostgreSQL }}
+
+    @Bean
+    @ServiceConnection
+    PostgreSQLContainer postgres() {
+        return new PostgreSQLContainer(parse("postgres:17-alpine"));
+    }
+{{ end }}
+{{ if .MySQL }}
+
+    @Bean
+    @ServiceConnection
+    MySQLContainer mysql() {
+        return new MySQLContainer(parse("mysql:8.4"));
+    }
+{{ end }}
+{{ if .MariaDB }}
+
+    @Bean
+    @ServiceConnection
+    MariaDBContainer mariadb() {
+        return new MariaDBContainer(parse("mariadb:11.8"));
+    }
+{{ end }}
+{{ if .Floci }}
+
+    @Bean
+    @ServiceConnection
+    FlociContainer flociContainer() {
+        return new FlociContainer("floci/floci:latest-compat")
+                .withClasspathResourceMapping(
+                        "/floci-init/ready.d/", "/etc/floci/init/ready.d/", BindMode.READ_ONLY);
+    }
+{{ end }}
+}

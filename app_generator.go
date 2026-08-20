@@ -30,6 +30,9 @@ const (
 	palantirFormatVersion = "2.96.0"
 	jacocoVersion         = "0.8.15"
 	gitCommitIDVersion    = "9.0.2"
+	springdocVersion      = "3.1.0"
+	archunitVersion       = "1.4.2"
+	flociVersion          = "2.14.0"
 )
 
 var (
@@ -87,6 +90,19 @@ func (dependency mavenDependency) Coordinate() string {
 	return dependency.GroupID + ":" + dependency.ArtifactID
 }
 
+func (dependency mavenDependency) Version() string {
+	switch dependency.Coordinate() {
+	case "org.springdoc:springdoc-openapi-starter-webmvc-ui":
+		return springdocVersion
+	case "com.tngtech.archunit:archunit-junit5":
+		return archunitVersion
+	case "io.floci:spring-boot-testcontainers-floci":
+		return flociVersion
+	default:
+		return ""
+	}
+}
+
 type pomTemplateData struct {
 	GroupID               string
 	ArtifactID            string
@@ -138,6 +154,7 @@ type projectMetadataTemplateData struct {
 	MailEnabled         bool
 	CloudAWSEnabled     bool
 	DockerComposeH2     bool
+	SpringdocEnabled    bool
 }
 
 type migrationTemplateData struct {
@@ -155,6 +172,15 @@ type composeTemplateData struct {
 	PostgreSQL   bool
 	MySQL        bool
 	MariaDB      bool
+	Floci        bool
+}
+
+type testcontainersTemplateData struct {
+	PackageName string
+	PostgreSQL  bool
+	MySQL       bool
+	MariaDB     bool
+	Floci       bool
 }
 
 type projectSupportTemplateData struct {
@@ -293,6 +319,10 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 	metadata.MailEnabled = contains(configuration.Features, "email")
 	metadata.CloudAWSEnabled = contains(configuration.Features, "spring-cloud-aws")
 	metadata.DockerComposeH2 = contains(configuration.Features, "docker-compose") && configuration.Database.Engine == "h2"
+	metadata.SpringdocEnabled = configuration.Frontend.Type == "angular"
+	if metadata.DockerComposeH2 && metadata.CloudAWSEnabled {
+		metadata.DockerComposeH2 = false
+	}
 	if configuration.Project.BuildTool == "maven" {
 		metadata.BuildCommand = "./mvnw test"
 		metadata.RunCommand = "./mvnw spring-boot:run"
@@ -341,6 +371,11 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		return err
 	}
 	files = append(files, optionalFeatureFiles...)
+	architectureTest, err := renderProjectTemplate("src/test/java/ArchUnitTests.java.tmpl", applicationTemplateData{PackageName: configuration.Project.PackageName})
+	if err != nil {
+		return err
+	}
+	files = append(files, projectFile{projectDirectory + "/src/test/java/" + packagePath + "/ArchUnitTests.java", architectureTest, 0o644})
 	projectSupportFiles, err := generateProjectSupportFiles(projectDirectory, configuration)
 	if err != nil {
 		return err
@@ -365,7 +400,7 @@ func generateProjectSupportFiles(projectDirectory string, configuration generato
 		JavaVersion:   javaVersion,
 		Maven:         configuration.Project.BuildTool == "maven",
 		Gradle:        configuration.Project.BuildTool != "maven",
-		DockerCompose: contains(configuration.Features, "docker-compose") && configuration.Database.Engine != "h2",
+		DockerCompose: contains(configuration.Features, "docker-compose") && (configuration.Database.Engine != "h2" || contains(configuration.Features, "spring-cloud-aws")),
 	}
 	templates := []struct {
 		template string
@@ -389,17 +424,40 @@ func generateProjectSupportFiles(projectDirectory string, configuration generato
 
 func generateOptionalFeatureFiles(projectDirectory string, packagePath string, configuration generatorConfiguration) ([]projectFile, error) {
 	var files []projectFile
-	if contains(configuration.Features, "docker-compose") && configuration.Database.Engine != "h2" {
+	cloudAWS := contains(configuration.Features, "spring-cloud-aws")
+	externalDatabase := configuration.Database.Engine != "h2"
+	if contains(configuration.Features, "docker-compose") && (configuration.Database.Engine != "h2" || cloudAWS) {
 		compose, err := renderProjectTemplate("compose.yaml.tmpl", composeTemplateData{
 			DatabaseName: sanitizeArtifactID(configuration.Project.ArtifactID),
 			PostgreSQL:   configuration.Database.Engine == "postgresql",
 			MySQL:        configuration.Database.Engine == "mysql",
 			MariaDB:      configuration.Database.Engine == "mariadb",
+			Floci:        cloudAWS,
 		})
 		if err != nil {
 			return nil, err
 		}
 		files = append(files, projectFile{projectDirectory + "/compose.yaml", compose, 0o644})
+	}
+	if externalDatabase || cloudAWS {
+		testcontainersConfig, err := renderProjectTemplate("src/test/java/TestcontainersConfig.java.tmpl", testcontainersTemplateData{
+			PackageName: configuration.Project.PackageName,
+			PostgreSQL:  configuration.Database.Engine == "postgresql",
+			MySQL:       configuration.Database.Engine == "mysql",
+			MariaDB:     configuration.Database.Engine == "mariadb",
+			Floci:       cloudAWS,
+		})
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, projectFile{projectDirectory + "/src/test/java/" + packagePath + "/TestcontainersConfig.java", testcontainersConfig, 0o644})
+		if cloudAWS {
+			flociSeed, err := renderProjectTemplate("src/test/resources/floci-init/ready.d/01-seed.sh.tmpl", nil)
+			if err != nil {
+				return nil, err
+			}
+			files = append(files, projectFile{projectDirectory + "/src/test/resources/floci-init/ready.d/01-seed.sh", flociSeed, 0o755})
+		}
 	}
 	if contains(configuration.Features, "spring-modulith") {
 		verificationTest, err := renderProjectTemplate("src/test/java/ModularityTests.java.tmpl", applicationTemplateData{PackageName: configuration.Project.PackageName})
@@ -607,6 +665,9 @@ func projectDependencies(configuration generatorConfiguration) []mavenDependency
 	if configuration.Frontend.Type == "thymeleaf" {
 		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-thymeleaf", "", false})
 	}
+	if configuration.Frontend.Type == "angular" {
+		dependencies = append(dependencies, mavenDependency{"org.springdoc", "springdoc-openapi-starter-webmvc-ui", "", false})
+	}
 	if configuration.Database.PersistenceFramework == "spring-data-jpa" {
 		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-data-jpa", "", false})
 	} else {
@@ -656,7 +717,23 @@ func projectDependencies(configuration generatorConfiguration) []mavenDependency
 	}
 	if contains(configuration.Features, "spring-cloud-aws") {
 		dependencies = append(dependencies, mavenDependency{"io.awspring.cloud", "spring-cloud-aws-starter", "", false})
+		dependencies = append(dependencies, mavenDependency{"io.floci", "spring-boot-testcontainers-floci", "test", false})
 	}
+	if configuration.Database.Engine != "h2" || contains(configuration.Features, "spring-cloud-aws") {
+		dependencies = append(dependencies,
+			mavenDependency{"org.springframework.boot", "spring-boot-testcontainers", "test", false},
+			mavenDependency{"org.testcontainers", "testcontainers-junit-jupiter", "test", false},
+		)
+		switch configuration.Database.Engine {
+		case "postgresql":
+			dependencies = append(dependencies, mavenDependency{"org.testcontainers", "testcontainers-postgresql", "test", false})
+		case "mysql":
+			dependencies = append(dependencies, mavenDependency{"org.testcontainers", "testcontainers-mysql", "test", false})
+		case "mariadb":
+			dependencies = append(dependencies, mavenDependency{"org.testcontainers", "testcontainers-mariadb", "test", false})
+		}
+	}
+	dependencies = append(dependencies, mavenDependency{"com.tngtech.archunit", "archunit-junit5", "test", false})
 
 	return dependencies
 }

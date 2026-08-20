@@ -842,6 +842,116 @@ func TestComposeTemplateSupportsMultipleSelectedServices(t *testing.T) {
 	}
 }
 
+func TestSpringdocFlociAndArchUnitGeneration(t *testing.T) {
+	t.Run("ArchUnit baseline", func(t *testing.T) {
+		configuration := minimalConfiguration()
+		filePath, archive := generateProjectArchive(t, configuration)
+		pom := readArchiveFile(t, archive, "demo/pom.xml")
+		assertBuildDependencies(t, "maven", pom, dependencyExpectation{present: []string{"com.tngtech.archunit:archunit-junit5"}})
+		if !strings.Contains(pom, "<version>"+archunitVersion+"</version>") {
+			t.Errorf("ArchUnit version is missing:\n%s", pom)
+		}
+		architectureTest := readArchiveFile(t, archive, "demo/src/test/java/com/example/demo/ArchUnitTests.java")
+		if !strings.Contains(architectureTest, "new ClassFileImporter().importPackagesOf(Application.class)") || !strings.Contains(architectureTest, `.resideInAPackage("com.example.demo..")`) {
+			t.Errorf("generated ArchUnit test is invalid:\n%s", architectureTest)
+		}
+		smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
+	})
+
+	t.Run("Springdoc Angular API", func(t *testing.T) {
+		configuration := minimalConfiguration()
+		configuration.Frontend.Type = "angular"
+		cssFramework := "tailwind"
+		configuration.Frontend.CSSFramework = &cssFramework
+		filePath, archive := generateProjectArchive(t, configuration)
+		pom := readArchiveFile(t, archive, "demo/pom.xml")
+		assertBuildDependencies(t, "maven", pom, dependencyExpectation{present: []string{"org.springdoc:springdoc-openapi-starter-webmvc-ui"}})
+		if !strings.Contains(pom, "<version>"+springdocVersion+"</version>") {
+			t.Errorf("Springdoc version is missing:\n%s", pom)
+		}
+		properties := readArchiveFile(t, archive, "demo/src/main/resources/application.properties")
+		for _, property := range []string{"springdoc.swagger-ui.enabled=false", "springdoc.paths-to-match=/api/**"} {
+			if !strings.Contains(properties, property) {
+				t.Errorf("Springdoc configuration is missing %q:\n%s", property, properties)
+			}
+		}
+		smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
+	})
+
+	t.Run("Floci Spring Cloud AWS", func(t *testing.T) {
+		configuration := minimalConfiguration()
+		configuration.Features = []string{"spring-cloud-aws", "docker-compose"}
+		filePath, archive := generateProjectArchive(t, configuration)
+		pom := readArchiveFile(t, archive, "demo/pom.xml")
+		assertBuildDependencies(t, "maven", pom, dependencyExpectation{present: []string{
+			"org.springframework.boot:spring-boot-testcontainers",
+			"io.floci:spring-boot-testcontainers-floci",
+		}})
+		if !strings.Contains(pom, "<version>"+flociVersion+"</version>") {
+			t.Errorf("Floci version is missing:\n%s", pom)
+		}
+		assertArchiveContains(t, archive,
+			"demo/compose.yaml",
+			"demo/src/test/java/com/example/demo/TestcontainersConfig.java",
+			"demo/src/test/resources/floci-init/ready.d/01-seed.sh",
+		)
+		compose := readArchiveFile(t, archive, "demo/compose.yaml")
+		for _, snippet := range []string{"floci:", "floci/floci:latest-compat", `"4566:4566"`, "AWS_DEFAULT_REGION: us-east-1"} {
+			if !strings.Contains(compose, snippet) {
+				t.Errorf("Floci Compose service is missing %q:\n%s", snippet, compose)
+			}
+		}
+		flociConfig := readArchiveFile(t, archive, "demo/src/test/java/com/example/demo/TestcontainersConfig.java")
+		if !strings.Contains(flociConfig, "FlociContainer") || !strings.Contains(flociConfig, "@ServiceConnection") {
+			t.Errorf("Floci Testcontainers configuration is invalid:\n%s", flociConfig)
+		}
+		assertArchiveFileMode(t, archive, "demo/src/test/resources/floci-init/ready.d/01-seed.sh", 0o755)
+		smokeTestGeneratedProject(t, filePath, configuration.Project.BuildTool)
+	})
+
+	t.Run("database and Floci share one configuration", func(t *testing.T) {
+		configuration := minimalConfiguration()
+		configuration.Database.Engine = "postgresql"
+		configuration.Features = []string{"spring-cloud-aws"}
+		filePath, archive := generateProjectArchive(t, configuration)
+		config := readArchiveFile(t, archive, "demo/src/test/java/com/example/demo/TestcontainersConfig.java")
+		if strings.Count(config, "class TestcontainersConfig") != 1 || !strings.Contains(config, "PostgreSQLContainer") || !strings.Contains(config, "FlociContainer") {
+			t.Errorf("database and Floci are not combined in one Testcontainers configuration:\n%s", config)
+		}
+		assertArchiveExcludes(t, archive, "demo/src/test/java/com/example/demo/FlociTestcontainersConfig.java")
+		smokeBuildGeneratedProject(t, filePath, configuration.Project.BuildTool)
+	})
+
+	containerTests := []struct {
+		engine     string
+		dependency string
+		container  string
+		image      string
+	}{
+		{"postgresql", "org.testcontainers:testcontainers-postgresql", "PostgreSQLContainer", "postgres:17-alpine"},
+		{"mysql", "org.testcontainers:testcontainers-mysql", "MySQLContainer", "mysql:8.4"},
+		{"mariadb", "org.testcontainers:testcontainers-mariadb", "MariaDBContainer", "mariadb:11.8"},
+	}
+	for _, test := range containerTests {
+		t.Run("Testcontainers "+test.engine, func(t *testing.T) {
+			configuration := minimalConfiguration()
+			configuration.Database.Engine = test.engine
+			filePath, archive := generateProjectArchive(t, configuration)
+			pom := readArchiveFile(t, archive, "demo/pom.xml")
+			assertBuildDependencies(t, "maven", pom, dependencyExpectation{present: []string{
+				"org.springframework.boot:spring-boot-testcontainers",
+				"org.testcontainers:testcontainers-junit-jupiter",
+				test.dependency,
+			}})
+			config := readArchiveFile(t, archive, "demo/src/test/java/com/example/demo/TestcontainersConfig.java")
+			if !strings.Contains(config, test.container) || !strings.Contains(config, test.image) || strings.Contains(config, "FlociContainer") {
+				t.Errorf("%s Testcontainers configuration is invalid:\n%s", test.engine, config)
+			}
+			smokeBuildGeneratedProject(t, filePath, configuration.Project.BuildTool)
+		})
+	}
+}
+
 func assertNoArchivePrefix(t *testing.T, archive *zip.ReadCloser, prefix string) {
 	t.Helper()
 	for _, name := range listArchiveFiles(archive) {
