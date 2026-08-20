@@ -8,6 +8,14 @@ type DatabaseEngine = 'postgresql' | 'mysql' | 'mariadb' | 'h2'
 type MigrationTool = 'none' | 'flyway' | 'liquibase'
 type PersistenceFramework = 'spring-data-jpa' | 'spring-jdbc-client'
 type SecurityMode = 'none' | 'http-session' | 'oauth-resource-server'
+type Feature = 'email' | 'docker-compose' | 'spring-modulith' | 'spring-cloud-aws'
+
+const featureOptions: ReadonlyArray<readonly [Feature, string, string]> = [
+  ['spring-modulith', 'Spring Modulith', 'Build well-structured modular Spring applications'],
+  ['spring-cloud-aws', 'Spring Cloud AWS', 'Integrate with AWS services using Spring'],
+  ['email', 'Email', 'Send transactional and application emails'],
+  ['docker-compose', 'Docker Compose', 'Run supporting services for local development'],
+]
 
 type ProjectMetadata = {
   groupId: string
@@ -55,6 +63,8 @@ function App() {
   const [savedDatabase, setSavedDatabase] = useState<DatabaseConfiguration | null>(null)
   const [security, setSecurity] = useState<SecurityConfiguration>(initialSecurityConfiguration)
   const [savedSecurity, setSavedSecurity] = useState<SecurityConfiguration | null>(null)
+  const [features, setFeatures] = useState<Feature[]>(['spring-modulith', 'docker-compose'])
+  const [savedFeatures, setSavedFeatures] = useState<Feature[] | null>(null)
 
   const updateMetadata = <K extends keyof ProjectMetadata>(field: K, value: ProjectMetadata[K]) => {
     setMetadata((current) => ({ ...current, [field]: value }))
@@ -88,6 +98,18 @@ function App() {
     event.preventDefault()
     setSavedSecurity({ ...security })
     setActiveStep(4)
+  }
+
+  const toggleFeature = (feature: Feature) => {
+    setFeatures((current) => current.includes(feature)
+      ? current.filter((selected) => selected !== feature)
+      : [...current, feature])
+  }
+
+  const handleFeaturesSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSavedFeatures([...features])
+    setActiveStep(5)
   }
 
   return (
@@ -293,12 +315,42 @@ function App() {
         )}
 
         {activeStep === 4 && savedSecurity && (
+          <form className="project-form features-form" onSubmit={handleFeaturesSubmit}>
+            <div className="form-heading">
+              <p className="eyebrow">Step 5 of 7</p>
+              <h1>Features</h1>
+              <p>Select any additional capabilities to include in your generated application.</p>
+            </div>
+
+            <fieldset className="feature-selector">
+              <legend>Optional Features</legend>
+              <div className="feature-options">
+                {featureOptions.map(([value, label, description]) => {
+                  const selected = features.includes(value)
+                  return (
+                    <label className={selected ? 'selected' : ''} key={value}>
+                      <input type="checkbox" value={value} checked={selected} onChange={() => toggleFeature(value)} />
+                      <span><strong>{label}</strong><small>{description}</small></span>
+                    </label>
+                  )
+                })}
+              </div>
+            </fieldset>
+
+            <div className="form-actions">
+              <button type="button" className="back-button" onClick={() => setActiveStep(3)}>Back</button>
+              <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
+            </div>
+          </form>
+        )}
+
+        {activeStep === 5 && savedFeatures && (
           <div className="next-step-placeholder">
             <div className="welcome-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7 16.5 13 22l12-13" /></svg></div>
-            <p className="eyebrow">Security saved</p>
-            <h1>Features</h1>
-            <p className="description">Your security choices are saved and ready for the remaining generator steps.</p>
-            <button type="button" className="back-button" onClick={() => setActiveStep(3)}>Back to security</button>
+            <p className="eyebrow">Features saved</p>
+            <h1>Review</h1>
+            <p className="description">{savedFeatures.length === 0 ? 'No optional features selected.' : `${savedFeatures.length} optional feature${savedFeatures.length === 1 ? '' : 's'} selected.`} Your project is ready to review.</p>
+            <button type="button" className="back-button" onClick={() => setActiveStep(4)}>Back to features</button>
           </div>
         )}
       </section>
