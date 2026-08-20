@@ -1,1 +1,7 @@
 spring.application.name={{ .ArtifactID }}
+spring.datasource.url={{ .DatasourceURL }}
+spring.datasource.driver-class-name={{ .DatasourceDriver }}
+{{- if .ExternalDatasource }}
+spring.datasource.username=${DATABASE_USERNAME}
+spring.datasource.password=${DATABASE_PASSWORD}
+{{- end }}

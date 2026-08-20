@@ -300,6 +300,108 @@ func TestBuildToolsHaveEquivalentDependencySemantics(t *testing.T) {
 	}
 }
 
+func TestDatabaseEnginesGenerateIsolatedRuntimeDriversAndConfiguration(t *testing.T) {
+	tests := []struct {
+		engine     string
+		coordinate string
+		url        string
+		driver     string
+		external   bool
+	}{
+		{
+			engine:     "postgresql",
+			coordinate: "org.postgresql:postgresql",
+			url:        "${DATABASE_URL:jdbc:postgresql://localhost:5432/demo}",
+			driver:     "org.postgresql.Driver",
+			external:   true,
+		},
+		{
+			engine:     "mysql",
+			coordinate: "com.mysql:mysql-connector-j",
+			url:        "${DATABASE_URL:jdbc:mysql://localhost:3306/demo}",
+			driver:     "com.mysql.cj.jdbc.Driver",
+			external:   true,
+		},
+		{
+			engine:     "mariadb",
+			coordinate: "org.mariadb.jdbc:mariadb-java-client",
+			url:        "${DATABASE_URL:jdbc:mariadb://localhost:3306/demo}",
+			driver:     "org.mariadb.jdbc.Driver",
+			external:   true,
+		},
+		{
+			engine:     "h2",
+			coordinate: "com.h2database:h2",
+			url:        "jdbc:h2:mem:demo;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
+			driver:     "org.h2.Driver",
+			external:   false,
+		},
+	}
+	drivers := []string{
+		"org.postgresql:postgresql",
+		"com.mysql:mysql-connector-j",
+		"org.mariadb.jdbc:mariadb-java-client",
+		"com.h2database:h2",
+	}
+
+	for _, test := range tests {
+		t.Run(test.engine, func(t *testing.T) {
+			configuration := minimalConfiguration()
+			configuration.Database.Engine = test.engine
+			_, archive := generateProjectArchive(t, configuration)
+
+			pom := readArchiveFile(t, archive, "demo/pom.xml")
+			absentDrivers := make([]string, 0, len(drivers)-1)
+			for _, driver := range drivers {
+				if driver != test.coordinate {
+					absentDrivers = append(absentDrivers, driver)
+				}
+			}
+			assertBuildDependencies(t, "maven", pom, dependencyExpectation{
+				present: []string{test.coordinate},
+				absent:  absentDrivers,
+			})
+			if scope := extractDependencyScopes(t, "maven", pom)[test.coordinate]; scope != "runtimeOnly" {
+				t.Errorf("database driver scope = %q, want runtimeOnly", scope)
+			}
+
+			properties := readArchiveFile(t, archive, "demo/src/main/resources/application.properties")
+			if !strings.Contains(properties, "spring.datasource.url="+test.url) {
+				t.Errorf("%s datasource URL is missing:\n%s", test.engine, properties)
+			}
+			if !strings.Contains(properties, "spring.datasource.driver-class-name="+test.driver) {
+				t.Errorf("%s datasource driver is missing:\n%s", test.engine, properties)
+			}
+			assertDatasourceCredentialsAreSafe(t, properties, test.external)
+		})
+	}
+}
+
+func assertDatasourceCredentialsAreSafe(t *testing.T, properties string, external bool) {
+	t.Helper()
+	username := propertyValue(properties, "spring.datasource.username")
+	password := propertyValue(properties, "spring.datasource.password")
+	if external {
+		if username != "${DATABASE_USERNAME}" || password != "${DATABASE_PASSWORD}" {
+			t.Errorf("external datasource credentials must use environment placeholders; username=%q password=%q", username, password)
+		}
+		return
+	}
+	if username != "" || password != "" {
+		t.Errorf("embedded datasource must not contain credentials; username=%q password=%q", username, password)
+	}
+}
+
+func propertyValue(properties string, key string) string {
+	for _, line := range strings.Split(properties, "\n") {
+		name, value, found := strings.Cut(line, "=")
+		if found && name == key {
+			return value
+		}
+	}
+	return ""
+}
+
 func prefixPaths(prefix string, paths []string) []string {
 	prefixed := make([]string, 0, len(paths))
 	for _, path := range paths {

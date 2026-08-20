@@ -111,11 +111,14 @@ type applicationTemplateData struct {
 }
 
 type projectMetadataTemplateData struct {
-	GroupID      string
-	ArtifactID   string
-	PackageName  string
-	BuildCommand string
-	RunCommand   string
+	GroupID            string
+	ArtifactID         string
+	PackageName        string
+	BuildCommand       string
+	RunCommand         string
+	DatasourceURL      string
+	DatasourceDriver   string
+	ExternalDatasource bool
 }
 
 type projectFile struct {
@@ -242,6 +245,7 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		ArtifactID:  configuration.Project.ArtifactID,
 		PackageName: configuration.Project.PackageName,
 	}
+	metadata.DatasourceURL, metadata.DatasourceDriver, metadata.ExternalDatasource = datasourceConfiguration(configuration.Database.Engine, sanitizeArtifactID(configuration.Project.ArtifactID))
 	if configuration.Project.BuildTool == "maven" {
 		metadata.BuildCommand = "./mvnw test"
 		metadata.RunCommand = "./mvnw spring-boot:run"
@@ -286,6 +290,21 @@ func writeProjectArchive(archive *zip.Writer, projectDirectory string, configura
 		}
 	}
 	return nil
+}
+
+func datasourceConfiguration(engine string, databaseName string) (url string, driver string, external bool) {
+	switch engine {
+	case "postgresql":
+		return "${DATABASE_URL:jdbc:postgresql://localhost:5432/" + databaseName + "}", "org.postgresql.Driver", true
+	case "mysql":
+		return "${DATABASE_URL:jdbc:mysql://localhost:3306/" + databaseName + "}", "com.mysql.cj.jdbc.Driver", true
+	case "mariadb":
+		return "${DATABASE_URL:jdbc:mariadb://localhost:3306/" + databaseName + "}", "org.mariadb.jdbc.Driver", true
+	case "h2":
+		return "jdbc:h2:mem:" + databaseName + ";DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE", "org.h2.Driver", false
+	default:
+		return "", "", false
+	}
 }
 
 func generateBuildFiles(projectDirectory string, configuration generatorConfiguration) ([]projectFile, error) {
