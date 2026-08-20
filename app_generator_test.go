@@ -52,7 +52,6 @@ func TestGenerateProjectCreatesMavenArchive(t *testing.T) {
 	configuration.Database.MigrationTool = "flyway"
 	configuration.Database.PersistenceFramework = "spring-data-jpa"
 	configuration.Security.Mode = "http-session"
-	configuration.Security.SpringSession = true
 	configuration.Features = []string{"email", "docker-compose", "spring-modulith", "spring-cloud-aws"}
 
 	filePath, archive := generateProjectArchive(t, configuration)
@@ -70,7 +69,6 @@ func TestGenerateProjectCreatesMavenArchive(t *testing.T) {
 		"org.postgresql:postgresql",
 		"org.springframework.boot:spring-boot-starter-flyway",
 		"org.springframework.boot:spring-boot-starter-security",
-		"org.springframework.boot:spring-boot-starter-session-jdbc",
 		"org.springframework.boot:spring-boot-starter-mail",
 		"org.springframework.boot:spring-boot-docker-compose",
 		"org.springframework.modulith:spring-modulith-starter-core",
@@ -258,7 +256,6 @@ func TestBuildToolsHaveEquivalentDependencySemantics(t *testing.T) {
 	configuration.Database.MigrationTool = "flyway"
 	configuration.Database.PersistenceFramework = "spring-data-jpa"
 	configuration.Security.Mode = "http-session"
-	configuration.Security.SpringSession = true
 	configuration.Features = []string{"email", "docker-compose", "spring-modulith", "spring-cloud-aws"}
 
 	wantScopes := make(map[string]string)
@@ -640,7 +637,6 @@ func TestGenerateProjectValidatesConfiguration(t *testing.T) {
 		{"unsupported feature", func(c *generatorConfiguration) { c.Features = []string{"graphql"} }, "unsupported feature"},
 		{"HTTP session without Thymeleaf", func(c *generatorConfiguration) { c.Security.Mode = "http-session" }, "requires the Thymeleaf frontend"},
 		{"OAuth without Angular", func(c *generatorConfiguration) { c.Security.Mode = "oauth-resource-server" }, "requires the Angular frontend"},
-		{"Spring Session without HTTP session", func(c *generatorConfiguration) { c.Security.SpringSession = true }, "requires HTTP-session security"},
 	}
 
 	for _, test := range tests {

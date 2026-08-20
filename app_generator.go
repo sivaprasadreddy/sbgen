@@ -54,8 +54,7 @@ type generatorConfiguration struct {
 		PersistenceFramework string `json:"persistenceFramework"`
 	} `json:"database"`
 	Security struct {
-		Mode          string `json:"mode"`
-		SpringSession bool   `json:"springSession"`
+		Mode string `json:"mode"`
 	} `json:"security"`
 	Features []string `json:"features"`
 }
@@ -195,9 +194,6 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	}
 	if configuration.Security.Mode == "oauth-resource-server" && configuration.Frontend.Type != "angular" {
 		return fmt.Errorf("OAuth resource-server security requires the Angular frontend")
-	}
-	if configuration.Security.SpringSession && configuration.Security.Mode != "http-session" {
-		return fmt.Errorf("Spring Session requires HTTP-session security")
 	}
 	for _, feature := range configuration.Features {
 		if !contains([]string{"email", "docker-compose", "spring-modulith", "spring-cloud-aws"}, feature) {
@@ -491,9 +487,6 @@ func projectDependencies(configuration generatorConfiguration) []mavenDependency
 	}
 	if configuration.Security.Mode == "oauth-resource-server" {
 		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-oauth2-resource-server", "", false})
-	}
-	if configuration.Security.SpringSession {
-		dependencies = append(dependencies, mavenDependency{"org.springframework.boot", "spring-boot-starter-session-jdbc", "", false})
 	}
 
 	if contains(configuration.Features, "email") {

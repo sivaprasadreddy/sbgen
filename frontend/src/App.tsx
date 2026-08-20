@@ -82,12 +82,10 @@ const initialDatabaseConfiguration: DatabaseConfiguration = {
 
 type SecurityConfiguration = {
   mode: SecurityMode
-  springSession: boolean
 }
 
 const initialSecurityConfiguration: SecurityConfiguration = {
   mode: 'none',
-  springSession: false,
 }
 
 function App() {
@@ -125,7 +123,6 @@ function App() {
         : frontend.frontend === 'angular' && current.mode === 'oauth-resource-server'
           ? current.mode
           : 'none',
-      springSession: frontend.frontend === 'thymeleaf' && current.springSession,
     }))
     setActiveStep(3)
   }
@@ -402,7 +399,7 @@ function App() {
               <legend>Security</legend>
               <div className="build-options security-options">
                 <label className={security.mode === 'none' ? 'selected' : ''}>
-                  <input type="radio" name="securityMode" value="none" checked={security.mode === 'none'} onChange={() => setSecurity({ mode: 'none', springSession: false })} />
+                  <input type="radio" name="securityMode" value="none" checked={security.mode === 'none'} onChange={() => setSecurity({ mode: 'none' })} />
                   <span><strong>None</strong><small>Do not configure application security</small></span>
                 </label>
 
@@ -415,19 +412,12 @@ function App() {
 
                 {savedFrontend.frontend === 'angular' && (
                   <label className={security.mode === 'oauth-resource-server' ? 'selected' : ''}>
-                    <input type="radio" name="securityMode" value="oauth-resource-server" checked={security.mode === 'oauth-resource-server'} onChange={() => setSecurity({ mode: 'oauth-resource-server', springSession: false })} />
+                    <input type="radio" name="securityMode" value="oauth-resource-server" checked={security.mode === 'oauth-resource-server'} onChange={() => setSecurity({ mode: 'oauth-resource-server' })} />
                     <span><strong>OAuth Resource Server</strong><small>Token-based API security for the Angular application</small></span>
                   </label>
                 )}
               </div>
             </fieldset>
-
-            {savedFrontend.frontend === 'thymeleaf' && security.mode === 'http-session' && (
-              <label className={security.springSession ? 'session-option selected' : 'session-option'}>
-                <input type="checkbox" checked={security.springSession} onChange={(event) => setSecurity((current) => ({ ...current, springSession: event.target.checked }))} />
-                <span><strong>Spring Session</strong><small>Opt in to persistent, shared HTTP session management.</small></span>
-              </label>
-            )}
 
             <div className="form-actions">
               <button type="button" className="back-button" onClick={() => setActiveStep(3)}>Back</button>
@@ -506,7 +496,6 @@ function App() {
                 <h2>Security</h2>
                 <dl>
                   <div><dt>Security</dt><dd>{labels[savedSecurity.mode]}</dd></div>
-                  <div><dt>Spring Session</dt><dd>{savedSecurity.springSession ? 'Enabled' : 'Disabled'}</dd></div>
                 </dl>
               </section>
 
