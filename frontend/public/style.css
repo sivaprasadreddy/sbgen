@@ -12,11 +12,13 @@ button { font: inherit; }
 .steps { list-style: none; display: flex; flex-direction: column; gap: 3px; margin: 18px 0 0; padding: 0; }
 .steps li { height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-radius: 8px; color: #445064; font-size: 13px; font-weight: 500; }
 .steps li.active { color: #151626; background: rgba(255,255,255,.95); box-shadow: 0 2px 8px rgba(55,57,88,.05); }
+.steps li.complete { color: #087f45; }
 .step-number { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; color: #485164; background: rgba(222,228,236,.86); font-size: 11px; }
 .steps li.active .step-number { color: #fff; background: #ef444d; }
+.steps li.complete .step-number { color: #fff; background: #18ba66; }
 .sidebar-tools { margin-top: auto; display: flex; align-items: center; gap: 21px; padding-left: 37px; color: #586276; font-size: 15px; }
 .sidebar-tools .heart { color: #ef444d; }
-.welcome-panel { min-width: 0; display: grid; place-items: center; padding: 48px; background: linear-gradient(120deg,#f4f3f8 0%,#faf2f7 48%,#eef2fb 100%); }
+.content-panel { min-width: 0; display: grid; place-items: center; padding: 48px; overflow: auto; background: linear-gradient(120deg,#f4f3f8 0%,#faf2f7 48%,#eef2fb 100%); }
 .welcome-content { width: min(560px,78%); display: flex; flex-direction: column; align-items: center; text-align: center; transform: translateY(-4px); }
 .welcome-icon { width: 65px; height: 65px; display: grid; place-items: center; margin-bottom: 22px; border-radius: 16px; color: #19bd68; background: rgba(83,203,139,.22); }
 .welcome-icon svg { width: 37px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -27,4 +29,32 @@ h1 { margin: 0; color: #171828; font-size: clamp(27px,3.1vw,42px); line-height: 
 .continue-button:hover { color: #fff; background: #ef3e48; transform: translateY(-1px); }
 .continue-button:active { transform: translateY(0); }
 .continue-button:focus-visible { outline: 3px solid rgba(239,62,72,.22); outline-offset: 3px; }
-@media (max-width: 720px) { body { padding: 0; } .generator-shell { height: 100vh; height: 100dvh; grid-template-columns: 74px 1fr; border: 0; border-radius: 0; } .sidebar { padding: 24px 10px 16px; } .logo-wrap { min-height: 92px; } .logo { width: 60px; height: 57px; } .logo-wrap span,.steps li > span:last-child { display: none; } .steps { align-items: center; margin-top: 16px; } .steps li { width: 44px; justify-content: center; padding: 0; } .sidebar-tools { flex-direction: column; gap: 12px; padding: 0; font-size: 11px; } .welcome-panel { padding: 32px 20px; } .welcome-content { width: 100%; } h1 { font-size: 29px; } .description { font-size: 13px; } }
+.project-form { width: min(690px,100%); padding: 32px 38px; border: 1px solid rgba(205,207,221,.8); border-radius: 16px; background: rgba(255,255,255,.68); box-shadow: 0 14px 45px rgba(57,57,85,.08); }
+.form-heading { margin-bottom: 26px; }
+.form-heading .eyebrow { margin-bottom: 8px; }
+.form-heading h1 { font-size: 30px; }
+.form-heading > p:last-child { margin: 8px 0 0; color: #74788b; font-size: 13px; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.field { display: flex; flex-direction: column; gap: 7px; color: #303244; font-size: 12px; font-weight: 700; }
+.field-wide { grid-column: 1 / -1; }
+.field input { width: 100%; padding: 11px 13px; border: 1px solid #d7d8e2; border-radius: 8px; outline: none; color: #202231; background: rgba(255,255,255,.85); font-size: 13px; font-weight: 500; transition: border-color .15s ease,box-shadow .15s ease; --wails-draggable: no-drag; }
+.field input:focus { border-color: #ef5660; box-shadow: 0 0 0 3px rgba(239,62,72,.1); }
+.field small { color: #9295a4; font-size: 9px; font-weight: 500; }
+.build-tool { margin: 25px 0 0; padding: 0; border: 0; }
+.build-tool legend { margin-bottom: 10px; color: #303244; font-size: 12px; font-weight: 700; }
+.build-options { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+.build-options label { display: flex; align-items: center; gap: 9px; min-height: 59px; padding: 10px 12px; border: 1px solid #d9dae3; border-radius: 9px; background: rgba(255,255,255,.55); cursor: pointer; --wails-draggable: no-drag; }
+.build-options label.selected { border-color: #ef4a54; background: #fff7f7; box-shadow: 0 0 0 2px rgba(239,62,72,.07); }
+.build-options input { accent-color: #ef3e48; }
+.build-options label > span { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.build-options strong { font-size: 11px; white-space: nowrap; }
+.build-options small { color: #8d91a0; font-size: 9px; }
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 29px; }
+.back-button,.next-button { padding: 10px 20px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; --wails-draggable: no-drag; }
+.back-button { border: 1px solid #d3d5df; color: #535769; background: rgba(255,255,255,.45); }
+.next-button { display: inline-flex; align-items: center; gap: 20px; border: 1px solid #ef3e48; color: #fff; background: #ef3e48; }
+.back-button:hover { background: #fff; }
+.next-button:hover { background: #dc303b; }
+.next-step-placeholder { width: min(560px,78%); display: flex; flex-direction: column; align-items: center; text-align: center; }
+.next-step-placeholder .back-button { margin-top: 2px; }
+@media (max-width: 720px) { body { padding: 0; } .generator-shell { height: 100vh; height: 100dvh; grid-template-columns: 74px 1fr; border: 0; border-radius: 0; } .sidebar { padding: 24px 10px 16px; } .logo-wrap { min-height: 92px; } .logo { width: 60px; height: 57px; } .logo-wrap span,.steps li > span:last-child { display: none; } .steps { align-items: center; margin-top: 16px; } .steps li { width: 44px; justify-content: center; padding: 0; } .sidebar-tools { flex-direction: column; gap: 12px; padding: 0; font-size: 11px; } .content-panel { padding: 28px 18px; } .welcome-content { width: 100%; } h1 { font-size: 29px; } .description { font-size: 13px; } .project-form { padding: 25px 20px; } .field-grid,.build-options { grid-template-columns: 1fr; } .field-wide { grid-column: auto; } }
