@@ -162,6 +162,7 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		DockerComposeSupport:  contains(configuration.Features, "docker-compose"),
 		SpringModulithSupport: contains(configuration.Features, "spring-modulith"),
 		SpringCloudAWSSupport: contains(configuration.Features, "spring-cloud-aws"),
+		EmailSupport:          contains(configuration.Features, "email"),
 		ThymeleafSupport:      configuration.Frontend.Type == "thymeleaf",
 		HTMXSupport:           configuration.Frontend.HTMXSupport,
 		SecuritySupport:       configuration.Security.Mode == "http-session",

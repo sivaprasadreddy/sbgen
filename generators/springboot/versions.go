@@ -11,6 +11,7 @@ const (
 	springCloudAWSVersion          = "4.1.0"
 	springBootFlociTcVersion       = "2.14.0"
 	springdocOpenapiVersion        = "3.1.0"
+	tcMailpitVersion               = "1.3.1"
 	fontAwesomeVersion             = "7.3.0"
 	htmxVersion                    = "2.0.10"
 	htmxSpringBootThymeleafVersion = "5.1.0"
@@ -31,6 +32,7 @@ type Versions struct {
 	SpringCloudAWSVersion          string
 	SpringBootFlociTcVersion       string
 	SpringdocOpenapiVersion        string
+	TcMailpitVersion               string
 	FontAwesomeVersion             string
 	HtmxVersion                    string
 	HtmxSpringBootThymeleafVersion string
@@ -51,6 +53,7 @@ func defaultVersions() Versions {
 		SpringCloudAWSVersion:          springCloudAWSVersion,
 		SpringBootFlociTcVersion:       springBootFlociTcVersion,
 		SpringdocOpenapiVersion:        springdocOpenapiVersion,
+		TcMailpitVersion:               tcMailpitVersion,
 		FontAwesomeVersion:             fontAwesomeVersion,
 		HtmxVersion:                    htmxVersion,
 		HtmxSpringBootThymeleafVersion: htmxSpringBootThymeleafVersion,

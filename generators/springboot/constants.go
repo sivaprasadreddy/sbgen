@@ -65,6 +65,7 @@ func (s DbMigrationTool) String() string {
 const FeatureDockerComposeSupport = "Docker Compose"
 const FeatureSpringModulithSupport = "Spring Modulith"
 const FeatureSpringCloudAWSSupport = "Spring Cloud AWS"
+const FeatureEmailSupport = "Email"
 const FeatureThymeleafSupport = "Thymeleaf"
 const FeatureHTMXSupport = "HTMX"
 const FeatureSecuritySupport = "Security"

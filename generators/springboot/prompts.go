@@ -128,6 +128,7 @@ func getProjectConfigAnswers() (*ProjectConfig, error) {
 		huh.NewOption(FeatureDockerComposeSupport, FeatureDockerComposeSupport).Selected(true),
 		huh.NewOption(FeatureSpringModulithSupport, FeatureSpringModulithSupport),
 		huh.NewOption(FeatureSpringCloudAWSSupport, FeatureSpringCloudAWSSupport),
+		huh.NewOption(FeatureEmailSupport, FeatureEmailSupport),
 	}
 
 	if answers.AppType == WebApp {
@@ -166,6 +167,7 @@ func updateFeatureFlags(pc *ProjectConfig, features []string) {
 	pc.DockerComposeSupport = isEnabled(features, FeatureDockerComposeSupport)
 	pc.SpringModulithSupport = isEnabled(features, FeatureSpringModulithSupport)
 	pc.SpringCloudAWSSupport = isEnabled(features, FeatureSpringCloudAWSSupport)
+	pc.EmailSupport = isEnabled(features, FeatureEmailSupport)
 	pc.ThymeleafSupport = isEnabled(features, FeatureThymeleafSupport)
 	pc.HTMXSupport = isEnabled(features, FeatureHTMXSupport)
 	pc.SecuritySupport = isEnabled(features, FeatureSecuritySupport)

@@ -17,6 +17,16 @@ func TestHTMXSupportIsMappedToProjectConfig(t *testing.T) {
 	}
 }
 
+func TestEmailSupportIsMappedToProjectConfig(t *testing.T) {
+	configuration := validGeneratorConfiguration(t)
+	configuration.Features = []string{"email"}
+
+	projectConfig := toProjectConfig(configuration)
+	if !projectConfig.EmailSupport {
+		t.Fatal("toProjectConfig() did not enable Email support")
+	}
+}
+
 func TestValidateConfigurationRejectsHTMXWithoutThymeleaf(t *testing.T) {
 	configuration := validGeneratorConfiguration(t)
 	configuration.Frontend.Type = "angular"

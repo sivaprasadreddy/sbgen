@@ -34,6 +34,7 @@ type ProjectConfig struct {
 	DockerComposeSupport  bool
 	SpringModulithSupport bool
 	SpringCloudAWSSupport bool
+	EmailSupport          bool
 	ThymeleafSupport      bool
 	HTMXSupport           bool
 	SecuritySupport       bool
@@ -53,6 +54,7 @@ var defaultProjectConfig = ProjectConfig{
 	DockerComposeSupport:  true,
 	SpringModulithSupport: false,
 	SpringCloudAWSSupport: false,
+	EmailSupport:          false,
 	ThymeleafSupport:      false,
 	HTMXSupport:           false,
 	SecuritySupport:       false,

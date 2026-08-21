@@ -44,6 +44,11 @@ func (a AppCommonConfig) createSrcMainJava(pc ProjectConfig) error {
 			return err
 		}
 	}
+	if pc.EmailSupport {
+		if err := a.pg.executeTemplate(pc, srcMainJavaPath+"shared/email/EmailService.java.tmpl", srcMainJavaPath+basePackagePath+"/shared/email/EmailService.java"); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
