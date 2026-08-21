@@ -1,6 +1,6 @@
 package {{ .BasePackage }}.config;
 
-import {{ .BasePackage }}.security.TokenAuthenticationFilter;
+import {{ .BasePackage }}.users.JwtFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -28,9 +28,9 @@ class WebSecurityConfig {
         "/error",
     };
 
-    private final TokenAuthenticationFilter tokenAuthFilter;
+    private final JwtFilter tokenAuthFilter;
 
-    WebSecurityConfig(TokenAuthenticationFilter tokenAuthFilter) {
+    WebSecurityConfig(JwtFilter tokenAuthFilter) {
         this.tokenAuthFilter = tokenAuthFilter;
     }
 

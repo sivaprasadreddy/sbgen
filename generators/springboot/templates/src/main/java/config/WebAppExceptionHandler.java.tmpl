@@ -1,6 +1,6 @@
-package {{ .BasePackage }}.web;
+package {{ .BasePackage }}.config;
 
-import {{ .BasePackage }}.domain.ResourceNotFoundException;
+import {{ .BasePackage }}.shared.ResourceNotFoundException;
 {{- if .SecuritySupport }}
 import org.springframework.security.access.AccessDeniedException;
 {{ end }}
