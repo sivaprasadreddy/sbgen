@@ -1,14 +1,14 @@
 import { FormEvent, useState } from 'react'
-import { ConfigService } from '../bindings/github.com/sivaprasadreddy/sbgen'
+import { AppGeneratorService } from '../bindings/github.com/sivaprasadreddy/sbgen'
 
 const steps = ['Welcome', 'Project', 'Frontend', 'Database', 'Security', 'Features', 'Review', 'Complete']
 
-type BuildTool = 'maven' | 'gradle-groovy' | 'gradle-kotlin'
+type BuildTool = 'maven' | 'gradle-groovy'
 type Frontend = 'none' | 'thymeleaf' | 'angular'
-type CssFramework = 'tailwind' | 'bootstrap'
+type CssFramework = 'tailwind'
 type DatabaseEngine = 'postgresql' | 'mysql' | 'mariadb' | 'h2'
 type MigrationTool = 'none' | 'flyway' | 'liquibase'
-type PersistenceFramework = 'spring-data-jpa' | 'spring-jdbc-client'
+type PersistenceFramework = 'spring-data-jpa'
 type SecurityMode = 'none' | 'http-session' | 'oauth-resource-server'
 type Feature = 'email' | 'docker-compose' | 'spring-modulith' | 'spring-cloud-aws'
 
@@ -22,12 +22,10 @@ const featureOptions: ReadonlyArray<readonly [Feature, string, string]> = [
 const labels: Record<string, string> = {
   maven: 'Maven',
   'gradle-groovy': 'Gradle – Groovy',
-  'gradle-kotlin': 'Gradle – Kotlin',
   none: 'None',
   thymeleaf: 'Thymeleaf',
   angular: 'Angular',
   tailwind: 'Tailwind CSS',
-  bootstrap: 'Bootstrap CSS',
   postgresql: 'PostgreSQL',
   mysql: 'MySQL',
   mariadb: 'MariaDB',
@@ -35,7 +33,6 @@ const labels: Record<string, string> = {
   flyway: 'Flyway',
   liquibase: 'Liquibase',
   'spring-data-jpa': 'Spring Data JPA',
-  'spring-jdbc-client': 'Spring JdbcClient',
   'http-session': 'HTTP Session based Security',
   'oauth-resource-server': 'OAuth Resource Server',
   email: 'Email',
@@ -52,9 +49,9 @@ type ProjectMetadata = {
 }
 
 const initialMetadata: ProjectMetadata = {
-  groupId: 'com.example',
+  groupId: 'dev.sivalabs',
   artifactId: 'demo',
-  packageName: 'com.example.demo',
+  packageName: 'dev.sivalabs.demo',
   buildTool: 'maven',
 }
 
@@ -172,7 +169,7 @@ function App() {
     setIsGenerating(true)
     setGenerationError('')
     try {
-      const filePath = await ConfigService.GenerateProject(JSON.stringify(configuration))
+      const filePath = await AppGeneratorService.GenerateProject(JSON.stringify(configuration))
       setDownloadedFilePath(filePath)
       setActiveStep(7)
     } catch (error) {
@@ -259,7 +256,6 @@ function App() {
                 {([
                   ['maven', 'Maven', 'pom.xml'],
                   ['gradle-groovy', 'Gradle – Groovy', 'build.gradle'],
-                  ['gradle-kotlin', 'Gradle – Kotlin', 'build.gradle.kts'],
                 ] as const).map(([value, label, file]) => (
                   <label className={metadata.buildTool === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="buildTool" value={value} checked={metadata.buildTool === value} onChange={() => updateMetadata('buildTool', value)} />
@@ -293,7 +289,10 @@ function App() {
                   ['angular', 'Angular', 'Single-page web application'],
                 ] as const).map(([value, label, description]) => (
                   <label className={frontend.frontend === value ? 'selected' : ''} key={value}>
-                    <input type="radio" name="frontend" value={value} checked={frontend.frontend === value} onChange={() => setFrontend((current) => ({ ...current, frontend: value }))} />
+                    <input type="radio" name="frontend" value={value} checked={frontend.frontend === value} onChange={() => {
+                      setFrontend((current) => ({ ...current, frontend: value }))
+                      setSecurity({ mode: value === 'thymeleaf' ? 'http-session' : 'none' })
+                    }} />
                     <span><strong>{label}</strong><small>{description}</small></span>
                   </label>
                 ))}
@@ -306,7 +305,6 @@ function App() {
                 <div className="build-options database-options">
                   {([
                     ['tailwind', 'Tailwind CSS', 'Utility-first CSS framework'],
-                    ['bootstrap', 'Bootstrap CSS', 'Component-based CSS framework'],
                   ] as const).map(([value, label, description]) => (
                     <label className={frontend.cssFramework === value ? 'selected' : ''} key={value}>
                       <input type="radio" name="cssFramework" value={value} checked={frontend.cssFramework === value} onChange={() => setFrontend((current) => ({ ...current, cssFramework: value }))} />
@@ -354,7 +352,6 @@ function App() {
               <div className="build-options database-options">
                 {([
                   ['spring-data-jpa', 'Spring Data JPA', 'Repository-based persistence with JPA'],
-                  ['spring-jdbc-client', 'Spring JdbcClient', 'Fluent SQL-oriented data access'],
                 ] as const).map(([value, label, description]) => (
                   <label className={database.persistenceFramework === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="persistenceFramework" value={value} checked={database.persistenceFramework === value} onChange={() => updateDatabase('persistenceFramework', value)} />

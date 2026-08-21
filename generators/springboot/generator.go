@@ -79,11 +79,7 @@ func GenerateProject(pc ProjectConfig) error {
 	if err := pg.generate(pc); err != nil {
 		return err
 	}
-	return writeConfigFile(pc, pc.AppName+"/.progen.json")
-}
-
-func GenerateInitConfig() error {
-	return writeConfigFile(defaultProjectConfig, ".progen.json")
+	return writeConfigFile(pc, pc.AppName+"/.sbgen.json")
 }
 
 func loadConfig(configFile string) (ProjectConfig, error) {

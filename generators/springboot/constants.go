@@ -43,6 +43,7 @@ const (
 	PostgreSQL DatabaseType = "PostgreSQL"
 	MySQL      DatabaseType = "MySQL"
 	MariaDB    DatabaseType = "MariaDB"
+	H2         DatabaseType = "H2"
 )
 
 func (s DatabaseType) String() string {
@@ -52,6 +53,7 @@ func (s DatabaseType) String() string {
 type DbMigrationTool string
 
 const (
+	None      DbMigrationTool = "None"
 	Flyway    DbMigrationTool = "Flyway"
 	Liquibase DbMigrationTool = "Liquibase"
 )

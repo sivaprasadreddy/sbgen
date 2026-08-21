@@ -28,7 +28,7 @@ func main() {
 		Name:        "Spring Boot App Generator",
 		Description: "A Spring Boot Application Generator",
 		Services: []application.Service{
-			application.NewService(&ConfigService{}),
+			application.NewService(&AppGeneratorService{}),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -44,10 +44,10 @@ func main() {
 	// 'BackgroundColour' is the background colour of the window.
 	// 'URL' is the URL that will be loaded into the webview.
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title: "Springforge",
+		Title: "Spring Boot App Generator",
 		// Window sized to the golden ratio (1000 / 618 ≈ 1.618).
-		Width:  1000,
-		Height: 618,
+		Width:  1200,
+		Height: 800,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 50,
 			Backdrop:                application.MacBackdropTranslucent,

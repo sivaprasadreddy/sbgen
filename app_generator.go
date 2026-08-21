@@ -20,7 +20,7 @@ var (
 	generationMutex    sync.Mutex
 )
 
-type ConfigService struct{}
+type AppGeneratorService struct{}
 
 type generatorConfiguration struct {
 	Project struct {
@@ -44,7 +44,7 @@ type generatorConfiguration struct {
 	Features []string `json:"features"`
 }
 
-func (s *ConfigService) GenerateProject(configurationJSON string) (filePath string, err error) {
+func (s *AppGeneratorService) GenerateProject(configurationJSON string) (filePath string, err error) {
 	var configuration generatorConfiguration
 	if err := json.Unmarshal([]byte(configurationJSON), &configuration); err != nil {
 		return "", fmt.Errorf("invalid project configuration: %w", err)
@@ -90,8 +90,7 @@ func (s *ConfigService) GenerateProject(configurationJSON string) (filePath stri
 		return "", fmt.Errorf("restore working directory: %w", err)
 	}
 
-	zipPath := filepath.Join(downloadsDirectory, projectConfig.AppName+".zip")
-	zipFile, err := os.Create(zipPath)
+	zipFile, zipPath, err := createUniqueZipFile(downloadsDirectory, projectConfig.AppName)
 	if err != nil {
 		return "", fmt.Errorf("create project archive: %w", err)
 	}
@@ -106,6 +105,23 @@ func (s *ConfigService) GenerateProject(configurationJSON string) (filePath stri
 	}
 
 	return zipPath, nil
+}
+
+func createUniqueZipFile(directory, name string) (*os.File, string, error) {
+	for suffix := 0; ; suffix++ {
+		fileName := name + ".zip"
+		if suffix > 0 {
+			fileName = fmt.Sprintf("%s-%d.zip", name, suffix)
+		}
+		filePath := filepath.Join(directory, fileName)
+		file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err == nil {
+			return file, filePath, nil
+		}
+		if !os.IsExist(err) {
+			return nil, "", err
+		}
+	}
 }
 
 func toProjectConfig(configuration generatorConfiguration) springboot.ProjectConfig {
@@ -124,10 +140,10 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		"postgresql": springboot.PostgreSQL,
 		"mysql":      springboot.MySQL,
 		"mariadb":    springboot.MariaDB,
-		"h2":         springboot.DatabaseType("H2"),
+		"h2":         springboot.H2,
 	}
 	migrationTools := map[string]springboot.DbMigrationTool{
-		"none":      springboot.DbMigrationTool("None"),
+		"none":      springboot.None,
 		"flyway":    springboot.Flyway,
 		"liquibase": springboot.Liquibase,
 	}
@@ -207,13 +223,13 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if !javaPackagePattern.MatchString(configuration.Project.PackageName) {
 		return fmt.Errorf("invalid Java package name %q", configuration.Project.PackageName)
 	}
-	if !contains([]string{"maven", "gradle-groovy", "gradle-kotlin"}, configuration.Project.BuildTool) {
+	if !contains([]string{"maven", "gradle-groovy"}, configuration.Project.BuildTool) {
 		return fmt.Errorf("unsupported build tool %q", configuration.Project.BuildTool)
 	}
 	if !contains([]string{"none", "thymeleaf", "angular"}, configuration.Frontend.Type) {
 		return fmt.Errorf("unsupported frontend type %q", configuration.Frontend.Type)
 	}
-	if configuration.Frontend.CSSFramework != nil && !contains([]string{"tailwind", "bootstrap"}, *configuration.Frontend.CSSFramework) {
+	if configuration.Frontend.CSSFramework != nil && *configuration.Frontend.CSSFramework != "tailwind" {
 		return fmt.Errorf("unsupported CSS framework %q", *configuration.Frontend.CSSFramework)
 	}
 	if configuration.Frontend.Type != "none" && configuration.Frontend.CSSFramework == nil {
@@ -225,7 +241,7 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if !contains([]string{"none", "flyway", "liquibase"}, configuration.Database.MigrationTool) {
 		return fmt.Errorf("unsupported migration tool %q", configuration.Database.MigrationTool)
 	}
-	if !contains([]string{"spring-data-jpa", "spring-jdbc-client"}, configuration.Database.PersistenceFramework) {
+	if configuration.Database.PersistenceFramework != "spring-data-jpa" {
 		return fmt.Errorf("unsupported persistence framework %q", configuration.Database.PersistenceFramework)
 	}
 	if !contains([]string{"none", "http-session", "oauth-resource-server"}, configuration.Security.Mode) {

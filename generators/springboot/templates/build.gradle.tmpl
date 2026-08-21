@@ -84,6 +84,10 @@ dependencies {
     {{- if eq .DbType "MariaDB" }}
     runtimeOnly "org.mariadb.jdbc:mariadb-java-client"
     {{- end }}
+    {{- if eq .DbType "H2" }}
+    runtimeOnly "com.h2database:h2"
+    implementation "org.springframework.boot:spring-boot-h2console"
+    {{- end }}
     {{- if eq .DbMigrationTool "Flyway"}}
     implementation "org.springframework.boot:spring-boot-starter-flyway"
     {{- if eq .DbType "PostgreSQL" }}
