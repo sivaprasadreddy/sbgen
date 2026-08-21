@@ -10,7 +10,7 @@ public record ApplicationProperties(
         {{- if eq .AppType "REST API" }}
         CorsProperties cors,
         OpenApiProperties openApi
-        {{- if .JwtSecuritySupport }}
+        {{- if .JwtSecurity }}
         ,JwtProperties jwt
         {{ end }}
         {{ end }}
@@ -37,7 +37,7 @@ public record ApplicationProperties(
     }
 {{ end }}
 
-{{- if .JwtSecuritySupport }}
+{{- if .JwtSecurity }}
     public record JwtProperties(
             @DefaultValue("{{ .AppName }}") String issuer,
             @DefaultValue("604800") Long expiresIn,

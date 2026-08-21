@@ -8,7 +8,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
-{{- if .SpringCloudAWSSupport }}
+{{- if .SpringCloudAWS }}
 import org.springframework.test.context.TestPropertySource;
 {{ end }}
 @SpringBootTest(webEnvironment = RANDOM_PORT)

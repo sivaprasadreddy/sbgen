@@ -32,7 +32,7 @@ type generatorConfiguration struct {
 	Frontend struct {
 		Type         string  `json:"type"`
 		CSSFramework *string `json:"cssFramework"`
-		HTMXSupport  bool    `json:"htmxSupport"`
+		HTMX         bool    `json:"htmxSupport"`
 	} `json:"frontend"`
 	Database struct {
 		Engine               string `json:"engine"`
@@ -150,23 +150,23 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 	}
 
 	return springboot.ProjectConfig{
-		AppType:               appType,
-		AppName:               strings.TrimSpace(configuration.Project.ArtifactID),
-		GroupID:               strings.TrimSpace(configuration.Project.GroupID),
-		ArtifactID:            strings.TrimSpace(configuration.Project.ArtifactID),
-		AppVersion:            "1.0.0",
-		BasePackage:           configuration.Project.PackageName,
-		BuildTool:             buildTool,
-		DbType:                databaseTypes[configuration.Database.Engine],
-		DbMigrationTool:       migrationTools[configuration.Database.MigrationTool],
-		DockerComposeSupport:  contains(configuration.Features, "docker-compose"),
-		SpringModulithSupport: contains(configuration.Features, "spring-modulith"),
-		SpringCloudAWSSupport: contains(configuration.Features, "spring-cloud-aws"),
-		EmailSupport:          contains(configuration.Features, "email"),
-		ThymeleafSupport:      configuration.Frontend.Type == "thymeleaf",
-		HTMXSupport:           configuration.Frontend.HTMXSupport,
-		SecuritySupport:       configuration.Security.Mode == "http-session",
-		JwtSecuritySupport:    configuration.Security.Mode == "jwt-security",
+		AppType:         appType,
+		AppName:         strings.TrimSpace(configuration.Project.ArtifactID),
+		GroupID:         strings.TrimSpace(configuration.Project.GroupID),
+		ArtifactID:      strings.TrimSpace(configuration.Project.ArtifactID),
+		AppVersion:      "1.0.0",
+		BasePackage:     configuration.Project.PackageName,
+		BuildTool:       buildTool,
+		DbType:          databaseTypes[configuration.Database.Engine],
+		DbMigrationTool: migrationTools[configuration.Database.MigrationTool],
+		DockerCompose:   contains(configuration.Features, "docker-compose"),
+		SpringModulith:  contains(configuration.Features, "spring-modulith"),
+		SpringCloudAWS:  contains(configuration.Features, "spring-cloud-aws"),
+		Email:           contains(configuration.Features, "email"),
+		Thymeleaf:       configuration.Frontend.Type == "thymeleaf",
+		HTMX:            configuration.Frontend.HTMX,
+		WebSecurity:     configuration.Security.Mode == "http-session",
+		JwtSecurity:     configuration.Security.Mode == "jwt-security",
 	}
 }
 
@@ -238,7 +238,7 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if configuration.Frontend.Type != "none" && configuration.Frontend.CSSFramework == nil {
 		return fmt.Errorf("CSS framework is required for %s frontend", configuration.Frontend.Type)
 	}
-	if configuration.Frontend.HTMXSupport && configuration.Frontend.Type != "thymeleaf" {
+	if configuration.Frontend.HTMX && configuration.Frontend.Type != "thymeleaf" {
 		return fmt.Errorf("HTMX support requires the Thymeleaf frontend")
 	}
 	if !contains([]string{"postgresql", "mysql", "mariadb", "h2"}, configuration.Database.Engine) {

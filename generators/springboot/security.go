@@ -21,14 +21,14 @@ func (s SecurityConfig) generate(pc ProjectConfig) error {
 }
 
 func (s SecurityConfig) createSrcMainJava(pc ProjectConfig) error {
-	if !pc.SecuritySupport && !pc.JwtSecuritySupport {
+	if !pc.WebSecurity && !pc.JwtSecurity {
 		return nil
 	}
 	basePackagePath := strings.ReplaceAll(pc.BasePackage, ".", "/")
 
 	templateMap := map[string]string{}
 
-	if pc.SecuritySupport || pc.JwtSecuritySupport {
+	if pc.WebSecurity || pc.JwtSecurity {
 		templateMap["users/Role.java.tmpl"] = "users/Role.java"
 		templateMap["users/UserEntity.java.tmpl"] = "users/UserEntity.java"
 		templateMap["users/UserDto.java.tmpl"] = "users/UserDto.java"
@@ -41,13 +41,13 @@ func (s SecurityConfig) createSrcMainJava(pc ProjectConfig) error {
 		templateMap["users/CreateUserCmd.java.tmpl"] = "users/CreateUserCmd.java"
 	}
 
-	if pc.SecuritySupport {
+	if pc.WebSecurity {
 		templateMap["config/WebSecurityConfig.java.tmpl"] = "config/WebSecurityConfig.java"
 		templateMap["config/WebAppExceptionHandler.java.tmpl"] = "config/GlobalExceptionHandler.java"
 		templateMap["users/UserController.java.tmpl"] = "users/UserController.java"
 	}
 
-	if pc.JwtSecuritySupport {
+	if pc.JwtSecurity {
 		templateMap["config/JwtWebSecurityConfig.java.tmpl"] = "config/WebSecurityConfig.java"
 		templateMap["users/AuthToken.java.tmpl"] = "users/AuthToken.java"
 		templateMap["users/TokenHelper.java.tmpl"] = "users/TokenHelper.java"
@@ -71,11 +71,11 @@ func (s SecurityConfig) createSrcTestJava(pc ProjectConfig) error {
 
 	templateMap := map[string]string{}
 
-	if pc.SecuritySupport {
+	if pc.WebSecurity {
 		templateMap["users/UserControllerTests.java.tmpl"] = "users/UserControllerTests.java"
 	}
 
-	if pc.JwtSecuritySupport {
+	if pc.JwtSecurity {
 		templateMap["users/LoginRestControllerTests.java.tmpl"] = "users/LoginRestControllerTests.java"
 		templateMap["users/UserRestControllerTests.java.tmpl"] = "users/UserRestControllerTests.java"
 	}

@@ -7,22 +7,22 @@ import (
 	"testing"
 )
 
-func TestHTMXSupportIsMappedToProjectConfig(t *testing.T) {
+func TestHTMXIsMappedToProjectConfig(t *testing.T) {
 	configuration := validGeneratorConfiguration(t)
-	configuration.Frontend.HTMXSupport = true
+	configuration.Frontend.HTMX = true
 
 	projectConfig := toProjectConfig(configuration)
-	if !projectConfig.HTMXSupport {
+	if !projectConfig.HTMX {
 		t.Fatal("toProjectConfig() did not enable HTMX support")
 	}
 }
 
-func TestEmailSupportIsMappedToProjectConfig(t *testing.T) {
+func TestEmailIsMappedToProjectConfig(t *testing.T) {
 	configuration := validGeneratorConfiguration(t)
 	configuration.Features = []string{"email"}
 
 	projectConfig := toProjectConfig(configuration)
-	if !projectConfig.EmailSupport {
+	if !projectConfig.Email {
 		t.Fatal("toProjectConfig() did not enable Email support")
 	}
 }
@@ -30,7 +30,7 @@ func TestEmailSupportIsMappedToProjectConfig(t *testing.T) {
 func TestValidateConfigurationRejectsHTMXWithoutThymeleaf(t *testing.T) {
 	configuration := validGeneratorConfiguration(t)
 	configuration.Frontend.Type = "angular"
-	configuration.Frontend.HTMXSupport = true
+	configuration.Frontend.HTMX = true
 
 	if err := validateConfiguration(configuration); err == nil {
 		t.Fatal("validateConfiguration() accepted HTMX without Thymeleaf")

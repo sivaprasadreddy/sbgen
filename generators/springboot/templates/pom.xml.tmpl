@@ -18,26 +18,26 @@
 	<properties>
 	    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<java.version>{{ .JavaVersion }}</java.version>
-{{- if .SpringModulithSupport }}
+{{- if .SpringModulith }}
         <spring-modulith.version>{{ .SpringModulithVersion }}</spring-modulith.version>
 {{ end }}
-{{- if .SpringCloudAWSSupport }}
+{{- if .SpringCloudAWS }}
         <spring-cloud-aws.version>{{ .SpringCloudAWSVersion }}</spring-cloud-aws.version>
         <spring-boot-floci-tc.version>{{ .SpringBootFlociTcVersion }}</spring-boot-floci-tc.version>
 {{ end }}
-{{- if .EmailSupport }}
+{{- if .Email }}
         <tc-mailpit.version>{{ .TcMailpitVersion }}</tc-mailpit.version>
 {{- end }}
-{{- if .ThymeleafSupport }}
+{{- if .Thymeleaf }}
         <font_awesome.version>{{ .FontAwesomeVersion }}</font_awesome.version>
 {{ end }}
-{{- if .HTMXSupport }}
+{{- if .HTMX }}
         <htmx.org.version>{{ .HtmxVersion }}</htmx.org.version>
 {{ end }}
-{{- if and .ThymeleafSupport .HTMXSupport }}
+{{- if and .Thymeleaf .HTMX }}
         <htmx-spring-boot-thymeleaf.version>{{ .HtmxSpringBootThymeleafVersion }}</htmx-spring-boot-thymeleaf.version>
 {{ end }}
-{{- if .JwtSecuritySupport }}
+{{- if .JwtSecurity }}
         <jjwt.version>{{ .JjwtVersion }}</jjwt.version>
 {{ end }}
 {{- if eq .AppType "REST API" }}
@@ -62,13 +62,13 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
-        {{- if or .SecuritySupport .JwtSecuritySupport }}
+        {{- if or .WebSecurity .JwtSecurity }}
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
         {{ end }}
-        {{- if .ThymeleafSupport }}
+        {{- if .Thymeleaf }}
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-thymeleaf</artifactId>
@@ -77,13 +77,13 @@
             <groupId>nz.net.ultraq.thymeleaf</groupId>
             <artifactId>thymeleaf-layout-dialect</artifactId>
         </dependency>
-        {{- if .SecuritySupport }}
+        {{- if .WebSecurity }}
         <dependency>
             <groupId>org.thymeleaf.extras</groupId>
             <artifactId>thymeleaf-extras-springsecurity6</artifactId>
         </dependency>
         {{ end }}
-        {{- if .HTMXSupport }}
+        {{- if .HTMX }}
         <dependency>
             <groupId>io.github.wimdeblauwe</groupId>
             <artifactId>htmx-spring-boot-thymeleaf</artifactId>
@@ -158,7 +158,7 @@
             <version>${springdoc-openapi.version}</version>
         </dependency>
         {{- end }}
-        {{- if .SpringModulithSupport }}
+        {{- if .SpringModulith }}
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-core</artifactId>
@@ -177,7 +177,7 @@
             <artifactId>spring-modulith-docs</artifactId>
         </dependency>
         {{ end }}
-        {{- if .SpringCloudAWSSupport }}
+        {{- if .SpringCloudAWS }}
         <dependency>
             <groupId>io.awspring.cloud</groupId>
             <artifactId>spring-cloud-aws-starter</artifactId>
@@ -187,13 +187,13 @@
             <artifactId>spring-cloud-aws-starter-s3</artifactId>
         </dependency>
         {{ end }}
-        {{- if .EmailSupport }}
+        {{- if .Email }}
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
         {{ end }}
-        {{- if .ThymeleafSupport }}
+        {{- if .Thymeleaf }}
         <dependency>
             <groupId>org.webjars</groupId>
             <artifactId>webjars-locator-lite</artifactId>
@@ -204,14 +204,14 @@
             <version>${font_awesome.version}</version>
         </dependency>
         {{ end }}
-        {{- if .HTMXSupport }}
+        {{- if .HTMX }}
         <dependency>
             <groupId>org.webjars.npm</groupId>
             <artifactId>htmx.org</artifactId>
             <version>${htmx.org.version}</version>
         </dependency>
         {{ end }}
-        {{- if .JwtSecuritySupport }}
+        {{- if .JwtSecurity }}
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
@@ -241,7 +241,7 @@
             <artifactId>spring-boot-configuration-processor</artifactId>
           <optional>true</optional>
         </dependency>
-        {{- if .DockerComposeSupport }}
+        {{- if .DockerCompose }}
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-docker-compose</artifactId>
@@ -259,7 +259,7 @@
               <artifactId>spring-boot-starter-validation-test</artifactId>
               <scope>test</scope>
         </dependency>
-        {{- if .ThymeleafSupport }}
+        {{- if .Thymeleaf }}
         <dependency>
               <groupId>org.springframework.boot</groupId>
               <artifactId>spring-boot-starter-thymeleaf-test</artifactId>
@@ -276,7 +276,7 @@
               <artifactId>spring-boot-starter-data-jpa-test</artifactId>
               <scope>test</scope>
         </dependency>
-        {{- if or .SecuritySupport .JwtSecuritySupport }}
+        {{- if or .WebSecurity .JwtSecurity }}
         <dependency>
               <groupId>org.springframework.boot</groupId>
               <artifactId>spring-boot-starter-security-test</artifactId>
@@ -297,7 +297,7 @@
               <scope>test</scope>
         </dependency>
         {{ end }}
-        {{- if .SpringModulithSupport }}
+        {{- if .SpringModulith }}
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-test</artifactId>
@@ -335,7 +335,7 @@
             <scope>test</scope>
         </dependency>
         {{- end }}
-        {{- if .SpringCloudAWSSupport }}
+        {{- if .SpringCloudAWS }}
         <dependency>
             <groupId>io.floci</groupId>
             <artifactId>spring-boot-testcontainers-floci</artifactId>
@@ -343,7 +343,7 @@
             <scope>test</scope>
         </dependency>
         {{- end }}
-        {{- if .EmailSupport }}
+        {{- if .Email }}
         <dependency>
             <groupId>ch.martinelli.oss</groupId>
             <artifactId>testcontainers-mailpit</artifactId>
@@ -361,7 +361,7 @@
 
     <dependencyManagement>
         <dependencies>
-        {{- if .SpringCloudAWSSupport }}
+        {{- if .SpringCloudAWS }}
             <dependency>
                 <groupId>io.awspring.cloud</groupId>
                 <artifactId>spring-cloud-aws-dependencies</artifactId>
@@ -370,7 +370,7 @@
                 <scope>import</scope>
             </dependency>
         {{ end }}
-        {{- if .SpringModulithSupport }}
+        {{- if .SpringModulith }}
             <dependency>
                 <groupId>org.springframework.modulith</groupId>
                 <artifactId>spring-modulith-bom</artifactId>

@@ -31,7 +31,7 @@ services:
     ports:
       - "3306:3306"
   {{- end }}
-  {{- if .SpringCloudAWSSupport }}
+  {{- if .SpringCloudAWS }}
   floci:
     image: floci/floci:latest-compat
     ports:
@@ -42,7 +42,7 @@ services:
     environment:
       AWS_DEFAULT_REGION: us-east-1
   {{- end }}
-  {{- if .EmailSupport }}
+  {{- if .Email }}
   mailpit:
     image: axllent/mailpit:v1.30
     ports:
@@ -55,7 +55,7 @@ services:
     container_name: {{ .ArtifactID }}
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      {{- if .EmailSupport }}
+      {{- if .Email }}
       EMAIL_HOST: mailpit
       EMAIL_PORT: 1025
       {{- end }}
@@ -86,7 +86,7 @@ services:
       {{- if eq .DbType "MariaDB" }}
       - mariadb
       {{- end }}
-      {{- if .EmailSupport }}
+      {{- if .Email }}
       - mailpit
       {{- end }}
     restart: unless-stopped

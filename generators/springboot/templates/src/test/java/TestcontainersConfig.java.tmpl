@@ -14,11 +14,11 @@ import org.testcontainers.mysql.MySQLContainer;
 {{- if eq .DbType "MariaDB" }}
 import org.testcontainers.mariadb.MariaDBContainer;
 {{ end }}
-{{- if .SpringCloudAWSSupport }}
+{{- if .SpringCloudAWS }}
 import io.floci.testcontainers.FlociContainer;
 import org.testcontainers.containers.BindMode;
 {{ end }}
-{{- if .EmailSupport }}
+{{- if .Email }}
 import ch.martinelli.oss.testcontainers.mailpit.MailpitContainer;
 {{ end }}
 
@@ -46,7 +46,7 @@ public class TestcontainersConfig {
         return new MariaDBContainer(parse("mariadb:12"));
     }
 {{- end }}
-{{- if .SpringCloudAWSSupport }}
+{{- if .SpringCloudAWS }}
     @Bean
     @ServiceConnection
     FlociContainer flociContainer() {
@@ -54,7 +54,7 @@ public class TestcontainersConfig {
                .withClasspathResourceMapping("/floci-init/ready.d/", "/etc/floci/init/ready.d/", BindMode.READ_ONLY);
     }
 {{ end }}
-{{- if .EmailSupport }}
+{{- if .Email }}
     @Bean
     @ServiceConnection
     MailpitContainer mailpit() {

@@ -9,6 +9,9 @@ func NewSpringCloudAwsConfig(pg projectGenerator) *SpringCloudAwsConfig {
 }
 
 func (b SpringCloudAwsConfig) generate(pc ProjectConfig) error {
+	if !pc.SpringCloudAWS {
+		return nil
+	}
 	return b.copyFlociInit(pc)
 }
 

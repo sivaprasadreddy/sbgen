@@ -47,12 +47,12 @@ func (a AppCommonConfig) createSrcMainJava(pc ProjectConfig) error {
 			return err
 		}
 	}
-	if pc.EmailSupport {
+	if pc.Email {
 		if err := a.pg.executeTemplate(pc, srcMainJavaPath+"shared/email/EmailService.java.tmpl", srcMainJavaPath+basePackagePath+"/shared/email/EmailService.java"); err != nil {
 			return err
 		}
 	}
-	if pc.SpringModulithSupport {
+	if pc.SpringModulith {
 		if err := a.pg.executeTemplate(pc, srcMainJavaPath+"shared/package-info.java.tmpl", srcMainJavaPath+basePackagePath+"/shared/package-info.java"); err != nil {
 			return err
 		}

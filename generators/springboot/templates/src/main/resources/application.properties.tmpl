@@ -1,5 +1,5 @@
 spring.application.name={{ .ArtifactID }}
-{{- if .DockerComposeSupport }}
+{{- if .DockerCompose }}
 spring.docker.compose.lifecycle-management=start_only
 {{ end }}
 
@@ -14,7 +14,7 @@ app.openapi.description={{ .ArtifactID }} API Swagger Documentation
 app.openapi.version=v1.0.0
 app.openapi.contact.name=CompanyName
 app.openapi.contact.email=support@company.com
-{{- if .JwtSecuritySupport }}
+{{- if .JwtSecurity }}
 app.jwt.issuer={{ .AppName }}
 app.jwt.expires-in=604800
 app.jwt.secret=secretsecretsecret12345678901234567890
@@ -76,14 +76,14 @@ spring.flyway.locations=classpath:/db/migration
 spring.liquibase.change-log=classpath:/db/migration/liquibase-changelog.xml
 {{ end }}
 
-{{- if .SpringModulithSupport }}
+{{ if .SpringModulith }}
 #### Spring Modulith ####
 spring.modulith.events.jdbc.schema-initialization.enabled=true
 spring.modulith.events.completion-mode=update
 spring.modulith.events.republish-outstanding-events-on-restart=true
 {{ end }}
 
-{{- if .EmailSupport }}
+{{ if .Email }}
 #### Email ####
 spring.mail.host=${EMAIL_HOST:127.0.0.1}
 spring.mail.port=${EMAIL_PORT:1025}
