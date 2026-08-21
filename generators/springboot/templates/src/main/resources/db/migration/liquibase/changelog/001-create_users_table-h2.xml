@@ -16,16 +16,16 @@
             <column name="id" type="bigint" defaultValueSequenceNext="user_id_seq">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="email" type="text">
+            <column name="email" type="varchar">
                 <constraints nullable="false" unique="true" uniqueConstraintName="uc_users_email"/>
             </column>
-            <column name="password" type="text">
+            <column name="password" type="varchar">
                 <constraints nullable="false"/>
             </column>
-            <column name="name" type="text">
+            <column name="name" type="varchar">
                 <constraints nullable="false"/>
             </column>
-            <column name="role" type="text">
+            <column name="role" type="varchar">
                 <constraints nullable="false"/>
             </column>
             <column name="created_at" type="datetime">

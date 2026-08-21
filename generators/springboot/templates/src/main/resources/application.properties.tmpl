@@ -74,14 +74,14 @@ spring.flyway.locations=classpath:/db/migration
 {{- end }}
 {{- if eq .DbMigrationTool "Liquibase"}}
 spring.liquibase.change-log=classpath:/db/migration/liquibase-changelog.xml
-{{- end }}
+{{ end }}
 
 {{- if .SpringModulithSupport }}
 #### Spring Modulith ####
 spring.modulith.events.jdbc.schema-initialization.enabled=true
 spring.modulith.events.completion-mode=update
 spring.modulith.events.republish-outstanding-events-on-restart=true
-{{- end }}
+{{ end }}
 
 {{- if .EmailSupport }}
 #### Email ####
@@ -93,4 +93,4 @@ spring.mail.password=${EMAIL_PASSWORD:}
 spring.mail.properties.mail.smtp.connectiontimeout=5000
 spring.mail.properties.mail.smtp.timeout=3000
 spring.mail.properties.mail.smtp.writetimeout=5000
-{{- end }}
+{{ end }}

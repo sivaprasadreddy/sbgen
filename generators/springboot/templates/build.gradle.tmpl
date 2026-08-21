@@ -103,6 +103,7 @@ dependencies {
     {{- end }}
     {{- if .SpringModulithSupport }}
     implementation "org.springframework.modulith:spring-modulith-starter-core"
+    implementation "org.springframework.modulith:spring-modulith-starter-jdbc"
     implementation "org.springframework.modulith:spring-modulith-docs"
     runtimeOnly 'org.springframework.modulith:spring-modulith-actuator'
     {{- end }}

@@ -3,10 +3,10 @@ create sequence user_id_seq start with 100 increment by 50;
 create table users
 (
     id         bigint    not null default nextval('user_id_seq'),
-    email      text      not null,
-    password   text      not null,
-    name       text      not null,
-    role       text      not null,
+    email      varchar   not null,
+    password   varchar   not null,
+    name       varchar   not null,
+    role       varchar   not null,
     created_at timestamp not null,
     updated_at timestamp,
     version    bigint       not null default 0,

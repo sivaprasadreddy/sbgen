@@ -9,7 +9,7 @@ import jakarta.persistence.*;
 class UserEntity extends BaseEntity {
 
     @Id
-    {{- if eq .DbType "PostgreSQL" }}
+    {{- if or (eq .DbType "PostgreSQL") (eq .DbType "H2") }}
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "user_id_generator")
     @SequenceGenerator(name = "user_id_generator", sequenceName = "user_id_seq")
     {{- end }}
