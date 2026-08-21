@@ -31,6 +31,7 @@ func (s SecurityConfig) createSrcMainJava(pc ProjectConfig) error {
 	if pc.SecuritySupport || pc.JwtSecuritySupport {
 		templateMap["users/Role.java.tmpl"] = "users/Role.java"
 		templateMap["users/UserEntity.java.tmpl"] = "users/UserEntity.java"
+		templateMap["users/UserDto.java.tmpl"] = "users/UserDto.java"
 		templateMap["users/UserRepository.java.tmpl"] = "users/UserRepository.java"
 		templateMap["users/UserService.java.tmpl"] = "users/UserService.java"
 		templateMap["users/SecurityUser.java.tmpl"] = "users/SecurityUser.java"
