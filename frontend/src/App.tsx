@@ -284,9 +284,9 @@ function App() {
               <legend>Frontend</legend>
               <div className="build-options">
                 {([
-                  ['none', 'None', 'Backend only'],
+                  ['none', 'None', 'Backend REST API only'],
                   ['thymeleaf', 'Thymeleaf', 'Server-rendered web application'],
-                  ['angular', 'Angular', 'Single-page web application'],
+                  ['angular', 'Angular', 'Single Page Application'],
                 ] as const).map(([value, label, description]) => (
                   <label className={frontend.frontend === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="frontend" value={value} checked={frontend.frontend === value} onChange={() => {
@@ -407,10 +407,10 @@ function App() {
                   </label>
                 )}
 
-                {savedFrontend.frontend === 'angular' && (
+                {(savedFrontend.frontend === 'none' || savedFrontend.frontend === 'angular') && (
                   <label className={security.mode === 'oauth-resource-server' ? 'selected' : ''}>
                     <input type="radio" name="securityMode" value="oauth-resource-server" checked={security.mode === 'oauth-resource-server'} onChange={() => setSecurity({ mode: 'oauth-resource-server' })} />
-                    <span><strong>OAuth Resource Server</strong><small>Token-based API security for the Angular application</small></span>
+                    <span><strong>OAuth Resource Server</strong><small>Token-based security for API access</small></span>
                   </label>
                 )}
               </div>

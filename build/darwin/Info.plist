@@ -4,7 +4,7 @@
         <key>CFBundlePackageType</key>
             <string>APPL</string>
         <key>CFBundleName</key>
-            <string>My Product</string>
+            <string>SB Gen</string>
         <key>CFBundleExecutable</key>
             <string>sbgen</string>
         <key>CFBundleIdentifier</key>

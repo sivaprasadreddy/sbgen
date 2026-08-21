@@ -10,11 +10,11 @@
     <Installer
         Path="sbgen"
         Arguments=""
-        InstallLocation="C:\Program Files\SivaLabs\My Product">
+        InstallLocation="C:\Program Files\SivaLabs\SB Gen">
     </Installer>
     <PackageInformation
-        PackageName="My Product"
-        PackageDisplayName="My Product"
+        PackageName="SB Gen"
+        PackageDisplayName="SB Gen"
         PublisherName="CN=SivaLabs"
         PublisherDisplayName="SivaLabs"
         Version="0.1.0.0"
@@ -27,7 +27,7 @@
             <Application
                 Id="dev.sivalabs.sbgen"
                 Description="A sbgen application"
-                DisplayName="My Product"
+                DisplayName="SB Gen"
                 ExecutableName="sbgen"
                 EntryPoint="Windows.FullTrustApplication">
                 
@@ -41,7 +41,7 @@
         </Dependencies>
         <Properties>
             <Framework>false</Framework>
-            <DisplayName>My Product</DisplayName>
+            <DisplayName>SB Gen</DisplayName>
             <PublisherDisplayName>SivaLabs</PublisherDisplayName>
             <Description>A sbgen application</Description>
             <Logo>Assets\AppIcon.png</Logo>

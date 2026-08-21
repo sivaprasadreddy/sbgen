@@ -250,8 +250,8 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if configuration.Security.Mode == "http-session" && configuration.Frontend.Type != "thymeleaf" {
 		return fmt.Errorf("HTTP-session security requires the Thymeleaf frontend")
 	}
-	if configuration.Security.Mode == "oauth-resource-server" && configuration.Frontend.Type != "angular" {
-		return fmt.Errorf("OAuth resource-server security requires the Angular frontend")
+	if configuration.Security.Mode == "oauth-resource-server" && !contains([]string{"none", "angular"}, configuration.Frontend.Type) {
+		return fmt.Errorf("OAuth resource-server security requires no frontend or the Angular frontend")
 	}
 	for _, feature := range configuration.Features {
 		if !contains([]string{"email", "docker-compose", "spring-modulith", "spring-cloud-aws"}, feature) {
