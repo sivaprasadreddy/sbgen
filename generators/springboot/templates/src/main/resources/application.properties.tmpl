@@ -9,6 +9,11 @@ app.cors.path-pattern=/api/**
 app.cors.allowed-origins=*
 app.cors.allowed-methods=*
 app.cors.allowed-headers=*
+app.openapi.title={{ .ArtifactID }} API
+app.openapi.description={{ .ArtifactID }} API Swagger Documentation
+app.openapi.version=v1.0.0
+app.openapi.contact.name=CompanyName
+app.openapi.contact.email=support@company.com
 {{- if .JwtSecuritySupport }}
 app.jwt.issuer={{ .AppName }}
 app.jwt.expires-in=604800

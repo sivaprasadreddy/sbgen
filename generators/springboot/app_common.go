@@ -33,7 +33,10 @@ func (a AppCommonConfig) createSrcMainJava(pc ProjectConfig) error {
 		"Application.java.tmpl":                      "Application.java",
 		"ApplicationProperties.java.tmpl":            "ApplicationProperties.java",
 		"config/WebMvcConfig.java.tmpl":              "config/WebMvcConfig.java",
+		"config/PersistenceConfig.java.tmpl":         "config/PersistenceConfig.java",
 		"shared/BaseEntity.java.tmpl":                "shared/BaseEntity.java",
+		"shared/PagedResult.java.tmpl":               "shared/PagedResult.java",
+		"shared/AuthUtils.java.tmpl":                 "shared/AuthUtils.java",
 		"shared/BadRequestException.java.tmpl":       "shared/BadRequestException.java",
 		"shared/ResourceNotFoundException.java.tmpl": "shared/ResourceNotFoundException.java",
 	}
@@ -49,12 +52,28 @@ func (a AppCommonConfig) createSrcMainJava(pc ProjectConfig) error {
 			return err
 		}
 	}
+	if pc.SpringModulithSupport {
+		if err := a.pg.executeTemplate(pc, srcMainJavaPath+"shared/package-info.java.tmpl", srcMainJavaPath+basePackagePath+"/shared/package-info.java"); err != nil {
+			return err
+		}
+	}
+	if pc.DbMigrationTool == Flyway {
+		if err := a.pg.executeTemplate(pc, srcMainJavaPath+"config/FlywayConfig.java.tmpl", srcMainJavaPath+basePackagePath+"/config/FlywayConfig.java"); err != nil {
+			return err
+		}
+	}
+	if pc.AppType == RestApi {
+		if err := a.pg.executeTemplate(pc, srcMainJavaPath+"config/OpenApiConfig.java.tmpl", srcMainJavaPath+basePackagePath+"/config/OpenApiConfig.java"); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (a AppCommonConfig) createSrcMainResources(pc ProjectConfig) error {
 	templateMap := map[string]string{
-		"application.properties.tmpl": "application.properties",
+		"application.properties.tmpl":       "application.properties",
+		"application-local.properties.tmpl": "application-local.properties",
 	}
 
 	for tmpl, filePath := range templateMap {
