@@ -9,7 +9,7 @@ type CssFramework = 'tailwind'
 type DatabaseEngine = 'postgresql' | 'mysql' | 'mariadb' | 'h2'
 type MigrationTool = 'none' | 'flyway' | 'liquibase'
 type PersistenceFramework = 'spring-data-jpa'
-type SecurityMode = 'none' | 'http-session' | 'oauth-resource-server'
+type SecurityMode = 'http-session' | 'jwt-security'
 type Feature = 'email' | 'docker-compose' | 'spring-modulith' | 'spring-cloud-aws'
 
 const featureOptions: ReadonlyArray<readonly [Feature, string, string]> = [
@@ -34,7 +34,7 @@ const labels: Record<string, string> = {
   liquibase: 'Liquibase',
   'spring-data-jpa': 'Spring Data JPA',
   'http-session': 'HTTP Session based Security',
-  'oauth-resource-server': 'OAuth Resource Server',
+  'jwt-security': 'JWT Security',
   email: 'Email',
   'docker-compose': 'Docker Compose',
   'spring-modulith': 'Spring Modulith',
@@ -84,8 +84,11 @@ type SecurityConfiguration = {
 }
 
 const initialSecurityConfiguration: SecurityConfiguration = {
-  mode: 'none',
+  mode: 'jwt-security',
 }
+
+const defaultSecurityMode = (frontend: Frontend): SecurityMode =>
+  frontend === 'thymeleaf' ? 'http-session' : 'jwt-security'
 
 function App() {
   const [activeStep, setActiveStep] = useState(0)
@@ -116,13 +119,7 @@ function App() {
   const handleFrontendSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavedFrontend({ ...frontend })
-    setSecurity((current) => ({
-      mode: frontend.frontend === 'thymeleaf' && current.mode === 'http-session'
-        ? current.mode
-        : frontend.frontend === 'angular' && current.mode === 'oauth-resource-server'
-          ? current.mode
-          : 'none',
-    }))
+    setSecurity({ mode: defaultSecurityMode(frontend.frontend) })
     setActiveStep(3)
   }
 
@@ -298,7 +295,7 @@ function App() {
                         frontend: value,
                         htmxSupport: value === 'thymeleaf' && current.htmxSupport,
                       }))
-                      setSecurity({ mode: value === 'thymeleaf' ? 'http-session' : 'none' })
+                      setSecurity({ mode: defaultSecurityMode(value) })
                     }} />
                     <span><strong>{label}</strong><small>{description}</small></span>
                   </label>
@@ -419,11 +416,6 @@ function App() {
             <fieldset className="build-tool first-option-group">
               <legend>Security</legend>
               <div className="build-options security-options">
-                <label className={security.mode === 'none' ? 'selected' : ''}>
-                  <input type="radio" name="securityMode" value="none" checked={security.mode === 'none'} onChange={() => setSecurity({ mode: 'none' })} />
-                  <span><strong>None</strong><small>Do not configure application security</small></span>
-                </label>
-
                 {savedFrontend.frontend === 'thymeleaf' && (
                   <label className={security.mode === 'http-session' ? 'selected' : ''}>
                     <input type="radio" name="securityMode" value="http-session" checked={security.mode === 'http-session'} onChange={() => setSecurity((current) => ({ ...current, mode: 'http-session' }))} />
@@ -432,9 +424,9 @@ function App() {
                 )}
 
                 {(savedFrontend.frontend === 'none' || savedFrontend.frontend === 'angular') && (
-                  <label className={security.mode === 'oauth-resource-server' ? 'selected' : ''}>
-                    <input type="radio" name="securityMode" value="oauth-resource-server" checked={security.mode === 'oauth-resource-server'} onChange={() => setSecurity({ mode: 'oauth-resource-server' })} />
-                    <span><strong>OAuth Resource Server</strong><small>Token-based security for API access</small></span>
+                  <label className={security.mode === 'jwt-security' ? 'selected' : ''}>
+                    <input type="radio" name="securityMode" value="jwt-security" checked={security.mode === 'jwt-security'} onChange={() => setSecurity({ mode: 'jwt-security' })} />
+                    <span><strong>JWT Security</strong><small>Token-based security for API access</small></span>
                   </label>
                 )}
               </div>

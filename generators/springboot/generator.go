@@ -129,7 +129,7 @@ func validateAndSanitize(pc ProjectConfig) ProjectConfig {
 	}
 
 	// Validate DatabaseType
-	if pc.DbType != PostgreSQL && pc.DbType != MySQL && pc.DbType != MariaDB {
+	if pc.DbType != PostgreSQL && pc.DbType != MySQL && pc.DbType != MariaDB && pc.DbType != H2 {
 		fmt.Printf("WARNING: DbType '%s' is invalid. Using default: %s\n", pc.DbType, defaultProjectConfig.DbType)
 		pc.DbType = defaultProjectConfig.DbType
 	}

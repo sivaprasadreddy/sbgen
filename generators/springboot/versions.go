@@ -6,7 +6,7 @@ const (
 	gradleDependencyMgmtVersion    = "1.1.7"
 	gradleGitPropertiesVersion     = "4.0.1"
 	spotlessGradlePluginVersion    = "8.9.0"
-	spotlessMavenPluginVersion     = "3.9.0"
+	spotlessMavenPluginVersion     = "3.10.0"
 	springModulithVersion          = "2.1.0"
 	springCloudAWSVersion          = "4.1.0"
 	springBootFlociTcVersion       = "2.14.0"
@@ -15,7 +15,7 @@ const (
 	htmxVersion                    = "2.0.10"
 	htmxSpringBootThymeleafVersion = "5.1.0"
 	jjwtVersion                    = "0.13.0"
-	archunitVersion                = "1.4.2"
+	archunitVersion                = "1.5.0"
 	palantirJavaFormatVersion      = "2.96.0"
 )
 

@@ -165,7 +165,7 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		ThymeleafSupport:      configuration.Frontend.Type == "thymeleaf",
 		HTMXSupport:           configuration.Frontend.HTMXSupport,
 		SecuritySupport:       configuration.Security.Mode == "http-session",
-		JwtSecuritySupport:    configuration.Security.Mode == "oauth-resource-server",
+		JwtSecuritySupport:    configuration.Security.Mode == "jwt-security",
 	}
 }
 
@@ -249,13 +249,13 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if configuration.Database.PersistenceFramework != "spring-data-jpa" {
 		return fmt.Errorf("unsupported persistence framework %q", configuration.Database.PersistenceFramework)
 	}
-	if !contains([]string{"none", "http-session", "oauth-resource-server"}, configuration.Security.Mode) {
+	if !contains([]string{"none", "http-session", "jwt-security"}, configuration.Security.Mode) {
 		return fmt.Errorf("unsupported security mode %q", configuration.Security.Mode)
 	}
 	if configuration.Security.Mode == "http-session" && configuration.Frontend.Type != "thymeleaf" {
 		return fmt.Errorf("HTTP-session security requires the Thymeleaf frontend")
 	}
-	if configuration.Security.Mode == "oauth-resource-server" && !contains([]string{"none", "angular"}, configuration.Frontend.Type) {
+	if configuration.Security.Mode == "jwt-security" && !contains([]string{"none", "angular"}, configuration.Frontend.Type) {
 		return fmt.Errorf("OAuth resource-server security requires no frontend or the Angular frontend")
 	}
 	for _, feature := range configuration.Features {
