@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=SB Gen
+Comment=A sbgen application
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/sbgen %u
+Terminal=false
+Type=Application
+Icon=sbgen
+Categories=Utility;
+StartupWMClass=sbgen
+
+ 
