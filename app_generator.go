@@ -32,6 +32,7 @@ type generatorConfiguration struct {
 	Frontend struct {
 		Type         string  `json:"type"`
 		CSSFramework *string `json:"cssFramework"`
+		HTMXSupport  bool    `json:"htmxSupport"`
 	} `json:"frontend"`
 	Database struct {
 		Engine               string `json:"engine"`
@@ -162,6 +163,7 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		SpringModulithSupport: contains(configuration.Features, "spring-modulith"),
 		SpringCloudAWSSupport: contains(configuration.Features, "spring-cloud-aws"),
 		ThymeleafSupport:      configuration.Frontend.Type == "thymeleaf",
+		HTMXSupport:           configuration.Frontend.HTMXSupport,
 		SecuritySupport:       configuration.Security.Mode == "http-session",
 		JwtSecuritySupport:    configuration.Security.Mode == "oauth-resource-server",
 	}
@@ -234,6 +236,9 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	}
 	if configuration.Frontend.Type != "none" && configuration.Frontend.CSSFramework == nil {
 		return fmt.Errorf("CSS framework is required for %s frontend", configuration.Frontend.Type)
+	}
+	if configuration.Frontend.HTMXSupport && configuration.Frontend.Type != "thymeleaf" {
+		return fmt.Errorf("HTMX support requires the Thymeleaf frontend")
 	}
 	if !contains([]string{"postgresql", "mysql", "mariadb", "h2"}, configuration.Database.Engine) {
 		return fmt.Errorf("unsupported database engine %q", configuration.Database.Engine)

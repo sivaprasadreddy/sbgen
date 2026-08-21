@@ -58,11 +58,13 @@ const initialMetadata: ProjectMetadata = {
 type FrontendConfiguration = {
   frontend: Frontend
   cssFramework: CssFramework
+  htmxSupport: boolean
 }
 
 const initialFrontendConfiguration: FrontendConfiguration = {
   frontend: 'none',
   cssFramework: 'tailwind',
+  htmxSupport: false,
 }
 
 type DatabaseConfiguration = {
@@ -160,6 +162,7 @@ function App() {
       frontend: {
         type: savedFrontend.frontend,
         cssFramework: savedFrontend.frontend === 'none' ? null : savedFrontend.cssFramework,
+        htmxSupport: savedFrontend.frontend === 'thymeleaf' && savedFrontend.htmxSupport,
       },
       database: savedDatabase,
       security: savedSecurity,
@@ -290,7 +293,11 @@ function App() {
                 ] as const).map(([value, label, description]) => (
                   <label className={frontend.frontend === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="frontend" value={value} checked={frontend.frontend === value} onChange={() => {
-                      setFrontend((current) => ({ ...current, frontend: value }))
+                      setFrontend((current) => ({
+                        ...current,
+                        frontend: value,
+                        htmxSupport: value === 'thymeleaf' && current.htmxSupport,
+                      }))
                       setSecurity({ mode: value === 'thymeleaf' ? 'http-session' : 'none' })
                     }} />
                     <span><strong>{label}</strong><small>{description}</small></span>
@@ -311,6 +318,23 @@ function App() {
                       <span><strong>{label}</strong><small>{description}</small></span>
                     </label>
                   ))}
+                </div>
+              </fieldset>
+            )}
+
+            {frontend.frontend === 'thymeleaf' && (
+              <fieldset className="build-tool">
+                <legend>Additional Support</legend>
+                <div className="build-options database-options">
+                  <label className={frontend.htmxSupport ? 'selected' : ''}>
+                    <input
+                      type="checkbox"
+                      name="htmxSupport"
+                      checked={frontend.htmxSupport}
+                      onChange={(event) => setFrontend((current) => ({ ...current, htmxSupport: event.target.checked }))}
+                    />
+                    <span><strong>HTMX</strong><small>Add HTMX and its Spring Boot Thymeleaf integration</small></span>
+                  </label>
                 </div>
               </fieldset>
             )}
@@ -477,6 +501,7 @@ function App() {
                 <dl>
                   <div><dt>Frontend</dt><dd>{labels[savedFrontend.frontend]}</dd></div>
                   <div><dt>CSS Framework</dt><dd>{savedFrontend.frontend === 'none' ? 'Not applicable' : labels[savedFrontend.cssFramework]}</dd></div>
+                  <div><dt>HTMX Support</dt><dd>{savedFrontend.frontend === 'thymeleaf' && savedFrontend.htmxSupport ? 'Enabled' : 'Disabled'}</dd></div>
                 </dl>
               </section>
 
