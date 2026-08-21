@@ -37,8 +37,6 @@ ext {
   set('springModulithVersion', "{{ .SpringModulithVersion }}")
 {{- end }}
 {{- if .ThymeleafSupport }}
-  set('bootstrapVersion', "{{ .BootstrapVersion }}")
-  set('jqueryVersion', "{{ .JqueryVersion }}")
   set('fontawesomeVersion', "{{ .FontAwesomeVersion }}")
 {{- end }}
 {{- if .HTMXSupport }}
@@ -111,8 +109,6 @@ dependencies {
     {{- end }}
     {{- if .ThymeleafSupport }}
     implementation "org.webjars:webjars-locator-lite"
-    implementation "org.webjars:bootstrap:${bootstrapVersion}"
-    implementation "org.webjars:jquery:${jqueryVersion}"
     implementation "org.webjars:font-awesome:${fontawesomeVersion}"
     {{- end }}
     {{- if .HTMXSupport }}

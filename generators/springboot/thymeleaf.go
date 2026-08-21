@@ -29,7 +29,6 @@ func (t ThymeleafConfig) createThymeleafTemplateFiles(pc ProjectConfig) error {
 	if pc.ThymeleafSupport && pc.SecuritySupport {
 		templateMap["templates/login.html.tmpl"] = "templates/login.html"
 		templateMap["templates/registration.html.tmpl"] = "templates/registration.html"
-		templateMap["templates/registration-success.html.tmpl"] = "templates/registration-success.html"
 		templateMap["templates/error/403.html.tmpl"] = "templates/error/403.html"
 	}
 
