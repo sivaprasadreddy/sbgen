@@ -4,9 +4,9 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"os/exec"
+	"os"
 	"path"
-	"runtime"
+	"strings"
 	"text/template"
 
 	"github.com/sivaprasadreddy/sbgen/generators/helpers"
@@ -19,24 +19,48 @@ const templatesRootDir = "templates"
 
 // ProjectConfig holds all configuration options for generating a Spring Boot project.
 type ProjectConfig struct {
-	Versions        `json:"-"`
-	AppType         AppType
-	AppName         string
-	GroupID         string
-	ArtifactID      string
-	AppVersion      string
-	BasePackage     string
-	BuildTool       BuildTool
-	DbType          DatabaseType
-	DbMigrationTool DbMigrationTool
-	DockerCompose   bool
-	SpringModulith  bool
-	SpringCloudAWS  bool
-	Email           bool
-	Thymeleaf       bool
-	HTMX            bool
-	WebSecurity     bool
-	JwtSecurity     bool
+	Versions              `json:"-"`
+	AppType               AppType
+	AppName               string
+	GroupID               string
+	ArtifactID            string
+	AppVersion            string
+	BasePackage           string
+	BuildTool             BuildTool
+	PersistenceType       PersistenceType
+	DbType                DatabaseType
+	DbMigrationTool       DbMigrationTool
+	SpringCloudAWSSupport bool
+	ThymeleafSupport      bool
+	HTMXSupport           bool
+	EmailSupport          bool
+}
+
+var defaultProjectConfig = ProjectConfig{
+	AppType:               RestApi,
+	AppName:               "myapp",
+	GroupID:               "com.mycompany",
+	ArtifactID:            "myapp",
+	AppVersion:            "1.0.0",
+	BasePackage:           "com.mycompany.myapp",
+	BuildTool:             Maven,
+	PersistenceType:       SpringDataJPA,
+	DbType:                PostgreSQL,
+	DbMigrationTool:       Flyway,
+	SpringCloudAWSSupport: false,
+	ThymeleafSupport:      false,
+	HTMXSupport:           false,
+	EmailSupport:          false,
+}
+
+func GenerateProjectFromConfigFile(configFile string) error {
+	if strings.TrimSpace(configFile) == "" {
+		return fmt.Errorf("configFile name is empty")
+	}
+	projectConfig, err := loadConfig(configFile)
+	helpers.FatalIfErr(err)
+	err = GenerateProject(projectConfig)
+	return err
 }
 
 func GenerateProject(pc ProjectConfig) error {
@@ -45,7 +69,79 @@ func GenerateProject(pc ProjectConfig) error {
 	if err := pg.generate(pc); err != nil {
 		return err
 	}
-	return writeConfigFile(pc, pc.AppName+"/.sbgen.json")
+	err := writeConfigFile(pc, pc.AppName+"/"+ProjectConfigFile)
+	helpers.FatalIfErrOrMsg(err, "Project generated successfully")
+	return err
+}
+
+func GenerateInitConfig() error {
+	return writeConfigFile(defaultProjectConfig, ProjectConfigFile)
+}
+
+func loadConfig(configFile string) (ProjectConfig, error) {
+	var config ProjectConfig
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return config, fmt.Errorf("failed to read config file: %w", err)
+	}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return config, fmt.Errorf("failed to unmarshal config file: %w", err)
+	}
+	return validateAndSanitize(config), nil
+}
+
+func validateAndSanitize(pc ProjectConfig) ProjectConfig {
+	// Validate string fields
+	if strings.TrimSpace(pc.AppName) == "" {
+		fmt.Printf("WARNING: AppName '%s' is invalid. Using default: %s\n", pc.AppName, defaultProjectConfig.AppName)
+		pc.AppName = defaultProjectConfig.AppName
+	}
+	if strings.TrimSpace(pc.GroupID) == "" {
+		fmt.Printf("WARNING: GroupID '%s' is invalid. Using default: %s\n", pc.GroupID, defaultProjectConfig.GroupID)
+		pc.GroupID = defaultProjectConfig.GroupID
+	}
+	if strings.TrimSpace(pc.ArtifactID) == "" {
+		fmt.Printf("WARNING: ArtifactID '%s' is invalid. Using default: %s\n", pc.ArtifactID, defaultProjectConfig.ArtifactID)
+		pc.ArtifactID = defaultProjectConfig.ArtifactID
+	}
+	if strings.TrimSpace(pc.AppVersion) == "" {
+		fmt.Printf("WARNING: AppVersion '%s' is invalid. Using default: %s\n", pc.AppVersion, defaultProjectConfig.AppVersion)
+		pc.AppVersion = defaultProjectConfig.AppVersion
+	}
+	if strings.TrimSpace(pc.BasePackage) == "" {
+		fmt.Printf("WARNING: BasePackage '%s' is invalid. Using default: %s\n", pc.BasePackage, defaultProjectConfig.BasePackage)
+		pc.BasePackage = defaultProjectConfig.BasePackage
+	}
+	// Validate AppType
+	if !pc.AppType.IsValid() {
+		fmt.Printf("WARNING: AppType '%s' is invalid. Using default: %s\n", pc.AppType, defaultProjectConfig.AppType)
+		pc.AppType = defaultProjectConfig.AppType
+	}
+
+	// Validate BuildTool
+	if !pc.BuildTool.IsValid() {
+		fmt.Printf("WARNING: BuildTool '%s' is invalid. Using default: %s\n", pc.BuildTool, defaultProjectConfig.BuildTool)
+		pc.BuildTool = defaultProjectConfig.BuildTool
+	}
+
+	// Validate DatabaseType
+	if !pc.PersistenceType.IsValid() {
+		fmt.Printf("WARNING: PersistenceType '%s' is invalid. Using default: %s\n", pc.PersistenceType, defaultProjectConfig.PersistenceType)
+		pc.PersistenceType = defaultProjectConfig.PersistenceType
+	}
+
+	if !pc.DbType.IsValid() {
+		fmt.Printf("WARNING: DbType '%s' is invalid. Using default: %s\n", pc.DbType, defaultProjectConfig.DbType)
+		pc.DbType = defaultProjectConfig.DbType
+	}
+
+	// Validate DbMigrationTool
+	if !pc.DbMigrationTool.IsValid() {
+		fmt.Printf("WARNING: DbMigrationTool '%s' is invalid. Using default: %s\n", pc.DbMigrationTool, defaultProjectConfig.DbMigrationTool)
+		pc.DbMigrationTool = defaultProjectConfig.DbMigrationTool
+	}
+
+	return pc
 }
 
 func writeConfigFile(pc ProjectConfig, filePath string) error {
@@ -55,7 +151,7 @@ func writeConfigFile(pc ProjectConfig, filePath string) error {
 	}
 	_, err = helpers.CreateFileWithData(filePath, data)
 	if err != nil {
-		return fmt.Errorf("failed to write .progen.json file: %w", err)
+		return fmt.Errorf("failed to write %s file: %w", ProjectConfigFile, err)
 	}
 	return nil
 }
@@ -74,20 +170,21 @@ func (pg projectGenerator) generate(pc ProjectConfig) error {
 	}
 
 	generators := []configGenerator{
-		NewBuildToolConfig(pg),
-		NewSdkmanConfig(pg),
-		NewTaskfileConfig(pg),
-		NewRenovateConfig(pg),
 		NewGitIgnoreConfig(pg),
-		NewDockerComposeConfig(pg),
-		NewGhActionsConfig(pg),
-		NewReadMeConfig(pg),
+		NewBuildToolConfig(pg),
 		NewAppCommonConfig(pg),
 		NewThymeleafConfig(pg),
 		NewDbMigrationsConfig(pg),
 		NewSpringModulithConfig(pg),
 		NewSecurityConfig(pg),
 		NewSpringCloudAwsConfig(pg),
+		NewEmailConfig(pg),
+		NewDockerComposeConfig(pg),
+		NewGhActionsConfig(pg),
+		NewReadMeConfig(pg),
+		NewSdkmanConfig(pg),
+		NewTaskfileConfig(pg),
+		NewRenovateConfig(pg),
 	}
 
 	for _, gen := range generators {
@@ -130,42 +227,4 @@ func (pg projectGenerator) executeTemplate(pc ProjectConfig, templatePath, targe
 		return err
 	}
 	return nil
-}
-
-func (pg projectGenerator) formatCode(pc ProjectConfig) error {
-	executable, formatCmd := pg.getBuildToolCommands(pc.BuildTool)
-	appFormatCmd := pg.buildCommandString(pc.AppName, executable, formatCmd)
-	cmd := pg.createOSCommand(appFormatCmd)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Println("failed to format project code\n%w", output)
-	}
-	return err
-}
-
-func (pg projectGenerator) getBuildToolCommands(buildTool BuildTool) (executable, formatCmd string) {
-	isWindows := runtime.GOOS == "windows"
-
-	if buildTool == Gradle {
-		if isWindows {
-			return "gradlew.bat", "spotlessApply"
-		}
-		return "./gradlew", "spotlessApply"
-	}
-
-	if isWindows {
-		return "mvnw.cmd", "spotless:apply"
-	}
-	return "./mvnw", "spotless:apply"
-}
-
-func (pg projectGenerator) buildCommandString(dirName, executable, formatCmd string) string {
-	return fmt.Sprintf("cd %s && %s %s", dirName, executable, formatCmd)
-}
-
-func (pg projectGenerator) createOSCommand(command string) *exec.Cmd {
-	if runtime.GOOS == "windows" {
-		return exec.Command("cmd", "/C", command)
-	}
-	return exec.Command("/bin/sh", "-c", command)
 }

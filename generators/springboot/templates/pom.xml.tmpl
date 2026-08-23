@@ -18,34 +18,34 @@
 	<properties>
 	    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<java.version>{{ .JavaVersion }}</java.version>
-{{- if .SpringModulith }}
         <spring-modulith.version>{{ .SpringModulithVersion }}</spring-modulith.version>
-{{ end }}
-{{- if .SpringCloudAWS }}
+{{- if .SpringCloudAWSSupport }}
         <spring-cloud-aws.version>{{ .SpringCloudAWSVersion }}</spring-cloud-aws.version>
         <spring-boot-floci-tc.version>{{ .SpringBootFlociTcVersion }}</spring-boot-floci-tc.version>
 {{ end }}
-{{- if .Email }}
+{{- if .EmailSupport }}
         <tc-mailpit.version>{{ .TcMailpitVersion }}</tc-mailpit.version>
 {{- end }}
-{{- if .Thymeleaf }}
+{{- if .ThymeleafSupport }}
         <font_awesome.version>{{ .FontAwesomeVersion }}</font_awesome.version>
 {{ end }}
-{{- if .HTMX }}
+{{- if .HTMXSupport }}
         <htmx.org.version>{{ .HtmxVersion }}</htmx.org.version>
 {{ end }}
-{{- if and .Thymeleaf .HTMX }}
+{{- if and .ThymeleafSupport .HTMXSupport }}
         <htmx-spring-boot-thymeleaf.version>{{ .HtmxSpringBootThymeleafVersion }}</htmx-spring-boot-thymeleaf.version>
 {{ end }}
-{{- if .JwtSecurity }}
-        <jjwt.version>{{ .JjwtVersion }}</jjwt.version>
-{{ end }}
 {{- if eq .AppType "REST API" }}
+        <jjwt.version>{{ .JjwtVersion }}</jjwt.version>
         <springdoc-openapi.version>{{ .SpringdocOpenapiVersion }}</springdoc-openapi.version>
 {{ end }}
+        <bootui.version>{{ .BootUIVersion }}</bootui.version>
+        <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
+        <jacoco.minimum.coverage>40%</jacoco.minimum.coverage>
         <palantir-java-format.version>{{ .PalantirJavaFormatVersion }}</palantir-java-format.version>
         <spotless.version>{{ .SpotlessMavenPluginVersion }}</spotless.version>
         <archunit.version>{{ .ArchunitVersion }}</archunit.version>
+        <taikai.version>{{ .TaikaiVersion }}</taikai.version>
         <dockerImageName>your_dockerhub_username/{{ .ArtifactID }}</dockerImageName>
 	</properties>
 
@@ -62,13 +62,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
-        {{- if or .WebSecurity .JwtSecurity }}
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
-        {{ end }}
-        {{- if .Thymeleaf }}
+        {{- if .ThymeleafSupport }}
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-thymeleaf</artifactId>
@@ -77,13 +75,11 @@
             <groupId>nz.net.ultraq.thymeleaf</groupId>
             <artifactId>thymeleaf-layout-dialect</artifactId>
         </dependency>
-        {{- if .WebSecurity }}
         <dependency>
             <groupId>org.thymeleaf.extras</groupId>
             <artifactId>thymeleaf-extras-springsecurity6</artifactId>
         </dependency>
-        {{ end }}
-        {{- if .HTMX }}
+        {{- if .HTMXSupport }}
         <dependency>
             <groupId>io.github.wimdeblauwe</groupId>
             <artifactId>htmx-spring-boot-thymeleaf</artifactId>
@@ -91,10 +87,18 @@
         </dependency>
         {{ end }}
         {{ end }}
+        {{- if eq .PersistenceType "Spring Data JPA" }}
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
+        {{- end }}
+        {{- if eq .PersistenceType "Spring JdbcClient" }}
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        {{- end }}
         {{- if eq .DbType "PostgreSQL" }}
         <dependency>
             <groupId>org.postgresql</groupId>
@@ -114,17 +118,6 @@
             <groupId>org.mariadb.jdbc</groupId>
             <artifactId>mariadb-java-client</artifactId>
             <scope>runtime</scope>
-        </dependency>
-        {{- end }}
-        {{- if eq .DbType "H2" }}
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-          <groupId>org.springframework.boot</groupId>
-          <artifactId>spring-boot-h2console</artifactId>
         </dependency>
         {{- end }}
         {{- if eq .DbMigrationTool "Flyway"}}
@@ -158,14 +151,9 @@
             <version>${springdoc-openapi.version}</version>
         </dependency>
         {{- end }}
-        {{- if .SpringModulith }}
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.modulith</groupId>
-            <artifactId>spring-modulith-starter-jdbc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.modulith</groupId>
@@ -176,8 +164,7 @@
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-docs</artifactId>
         </dependency>
-        {{ end }}
-        {{- if .SpringCloudAWS }}
+        {{- if .SpringCloudAWSSupport }}
         <dependency>
             <groupId>io.awspring.cloud</groupId>
             <artifactId>spring-cloud-aws-starter</artifactId>
@@ -187,13 +174,13 @@
             <artifactId>spring-cloud-aws-starter-s3</artifactId>
         </dependency>
         {{ end }}
-        {{- if .Email }}
+        {{- if .EmailSupport }}
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
         {{ end }}
-        {{- if .Thymeleaf }}
+        {{- if .ThymeleafSupport }}
         <dependency>
             <groupId>org.webjars</groupId>
             <artifactId>webjars-locator-lite</artifactId>
@@ -204,14 +191,14 @@
             <version>${font_awesome.version}</version>
         </dependency>
         {{ end }}
-        {{- if .HTMX }}
+        {{- if .HTMXSupport }}
         <dependency>
             <groupId>org.webjars.npm</groupId>
             <artifactId>htmx.org</artifactId>
             <version>${htmx.org.version}</version>
         </dependency>
         {{ end }}
-        {{- if .JwtSecurity }}
+        {{- if eq .AppType "REST API" }}
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
@@ -231,6 +218,13 @@
         </dependency>
         {{ end }}
         <dependency>
+            <groupId>com.julien-dubois.bootui</groupId>
+            <artifactId>bootui-spring-boot-starter</artifactId>
+            <version>${bootui.version}</version>
+        </dependency>
+
+        <!-- Dev dependencies -->
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>
             <scope>runtime</scope>
@@ -241,14 +235,14 @@
             <artifactId>spring-boot-configuration-processor</artifactId>
           <optional>true</optional>
         </dependency>
-        {{- if .DockerCompose }}
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-docker-compose</artifactId>
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
-        {{ end }}
+
+        <!-- Test dependencies -->
         <dependency>
               <groupId>org.springframework.boot</groupId>
               <artifactId>spring-boot-starter-webmvc-test</artifactId>
@@ -259,7 +253,7 @@
               <artifactId>spring-boot-starter-validation-test</artifactId>
               <scope>test</scope>
         </dependency>
-        {{- if .Thymeleaf }}
+        {{- if .ThymeleafSupport }}
         <dependency>
               <groupId>org.springframework.boot</groupId>
               <artifactId>spring-boot-starter-thymeleaf-test</artifactId>
@@ -271,18 +265,25 @@
               <artifactId>spring-boot-starter-actuator-test</artifactId>
               <scope>test</scope>
         </dependency>
+        {{- if eq .PersistenceType "Spring Data JPA" }}
         <dependency>
               <groupId>org.springframework.boot</groupId>
               <artifactId>spring-boot-starter-data-jpa-test</artifactId>
               <scope>test</scope>
         </dependency>
-        {{- if or .WebSecurity .JwtSecurity }}
+        {{- end }}
+        {{- if eq .PersistenceType "Spring JdbcClient" }}
+        <dependency>
+              <groupId>org.springframework.boot</groupId>
+              <artifactId>spring-boot-starter-jdbc-test</artifactId>
+              <scope>test</scope>
+        </dependency>
+        {{- end }}
         <dependency>
               <groupId>org.springframework.boot</groupId>
               <artifactId>spring-boot-starter-security-test</artifactId>
               <scope>test</scope>
         </dependency>
-        {{ end }}
         {{- if eq .DbMigrationTool "Flyway"}}
         <dependency>
               <groupId>org.springframework.boot</groupId>
@@ -297,13 +298,11 @@
               <scope>test</scope>
         </dependency>
         {{ end }}
-        {{- if .SpringModulith }}
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        {{ end }}
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-testcontainers</artifactId>
@@ -335,7 +334,7 @@
             <scope>test</scope>
         </dependency>
         {{- end }}
-        {{- if .SpringCloudAWS }}
+        {{- if .SpringCloudAWSSupport }}
         <dependency>
             <groupId>io.floci</groupId>
             <artifactId>spring-boot-testcontainers-floci</artifactId>
@@ -343,7 +342,7 @@
             <scope>test</scope>
         </dependency>
         {{- end }}
-        {{- if .Email }}
+        {{- if .EmailSupport }}
         <dependency>
             <groupId>ch.martinelli.oss</groupId>
             <artifactId>testcontainers-mailpit</artifactId>
@@ -352,16 +351,27 @@
         </dependency>
         {{- end }}
         <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
             <version>${archunit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.enofex</groupId>
+            <artifactId>taikai</artifactId>
+            <version>${taikai.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
 
     <dependencyManagement>
         <dependencies>
-        {{- if .SpringCloudAWS }}
+        {{- if .SpringCloudAWSSupport }}
             <dependency>
                 <groupId>io.awspring.cloud</groupId>
                 <artifactId>spring-cloud-aws-dependencies</artifactId>
@@ -370,7 +380,6 @@
                 <scope>import</scope>
             </dependency>
         {{ end }}
-        {{- if .SpringModulith }}
             <dependency>
                 <groupId>org.springframework.modulith</groupId>
                 <artifactId>spring-modulith-bom</artifactId>
@@ -378,7 +387,6 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-        {{ end }}
         </dependencies>
     </dependencyManagement>
 
@@ -423,6 +431,46 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.minimum.coverage}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>com.diffplug.spotless</groupId>
                 <artifactId>spotless-maven-plugin</artifactId>
                 <version>${spotless.version}</version>
@@ -435,6 +483,12 @@
                             <version>${palantir-java-format.version}</version>
                         </palantirJavaFormat>
                     </java>
+                    <pom>
+                        <sortPom>
+                            <keepBlankLines>false</keepBlankLines>
+                            <expandEmptyElements>false</expandEmptyElements>
+                        </sortPom>
+                    </pom>
                 </configuration>
                 <executions>
                     <execution>

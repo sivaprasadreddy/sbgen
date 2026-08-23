@@ -9,27 +9,25 @@ func NewThymeleafConfig(pg projectGenerator) *ThymeleafConfig {
 }
 
 func (t ThymeleafConfig) generate(pc ProjectConfig) error {
-	if !pc.Thymeleaf {
+	if !pc.ThymeleafSupport {
 		return nil
 	}
-	return t.createThymeleafTemplateFiles(pc)
+	if err := t.createSrcMainResources(pc); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (t ThymeleafConfig) createThymeleafTemplateFiles(pc ProjectConfig) error {
-	templateMap := map[string]string{}
-
-	if pc.Thymeleaf {
-		templateMap["static/css/styles.css"] = "static/css/styles.css"
-		templateMap["templates/index.html.tmpl"] = "templates/index.html"
-		templateMap["templates/layout.html.tmpl"] = "templates/layout.html"
-		templateMap["templates/error/404.html.tmpl"] = "templates/error/404.html"
-		templateMap["templates/error/500.html.tmpl"] = "templates/error/500.html"
-	}
-
-	if pc.Thymeleaf && pc.WebSecurity {
-		templateMap["templates/login.html.tmpl"] = "templates/login.html"
-		templateMap["templates/registration.html.tmpl"] = "templates/registration.html"
-		templateMap["templates/error/403.html.tmpl"] = "templates/error/403.html"
+func (t ThymeleafConfig) createSrcMainResources(pc ProjectConfig) error {
+	templateMap := map[string]string{
+		"static/css/styles.css":            "static/css/styles.css",
+		"templates/index.html.tmpl":        "templates/index.html",
+		"templates/layout.html.tmpl":       "templates/layout.html",
+		"templates/error/404.html.tmpl":    "templates/error/404.html",
+		"templates/error/500.html.tmpl":    "templates/error/500.html",
+		"templates/login.html.tmpl":        "templates/login.html",
+		"templates/registration.html.tmpl": "templates/registration.html",
+		"templates/error/403.html.tmpl":    "templates/error/403.html",
 	}
 
 	for tmpl, filePath := range templateMap {

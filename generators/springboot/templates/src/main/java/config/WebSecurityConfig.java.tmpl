@@ -20,12 +20,11 @@ class WebSecurityConfig {
         "/actuator/info/**",
         "/error",
         "/login",
-        "/registration",
-        "/registration-success"
+        "/registration"
     };
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http) {
         String[] unsecuredPaths = {
             "/login",
         };

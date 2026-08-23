@@ -21,33 +21,35 @@ func (s SecurityConfig) generate(pc ProjectConfig) error {
 }
 
 func (s SecurityConfig) createSrcMainJava(pc ProjectConfig) error {
-	if !pc.WebSecurity && !pc.JwtSecurity {
-		return nil
-	}
 	basePackagePath := strings.ReplaceAll(pc.BasePackage, ".", "/")
 
-	templateMap := map[string]string{}
-
-	if pc.WebSecurity || pc.JwtSecurity {
-		templateMap["users/Role.java.tmpl"] = "users/Role.java"
-		templateMap["users/UserEntity.java.tmpl"] = "users/UserEntity.java"
-		templateMap["users/UserDto.java.tmpl"] = "users/UserDto.java"
-		templateMap["users/UserRepository.java.tmpl"] = "users/UserRepository.java"
-		templateMap["users/UserService.java.tmpl"] = "users/UserService.java"
-		templateMap["users/SecurityUser.java.tmpl"] = "users/SecurityUser.java"
-		templateMap["config/SecurityConfig.java.tmpl"] = "config/SecurityConfig.java"
-		templateMap["users/SecurityUserDetailsService.java.tmpl"] = "users/SecurityUserDetailsService.java"
-		templateMap["users/UserContextUtils.java.tmpl"] = "users/UserContextUtils.java"
-		templateMap["users/CreateUserCmd.java.tmpl"] = "users/CreateUserCmd.java"
+	templateMap := map[string]string{
+		"users/Role.java.tmpl":                       "users/Role.java",
+		"users/UserDto.java.tmpl":                    "users/UserDto.java",
+		"users/UserService.java.tmpl":                "users/UserService.java",
+		"users/SecurityUser.java.tmpl":               "users/SecurityUser.java",
+		"config/SecurityConfig.java.tmpl":            "config/SecurityConfig.java",
+		"users/SecurityUserDetailsService.java.tmpl": "users/SecurityUserDetailsService.java",
+		"users/UserContextUtils.java.tmpl":           "users/UserContextUtils.java",
+		"users/CreateUserCmd.java.tmpl":              "users/CreateUserCmd.java",
+		"users/AuthUtils.java.tmpl":                  "users/AuthUtils.java",
+	}
+	if pc.PersistenceType == SpringDataJPA {
+		templateMap["users/JpaUserEntity.java.tmpl"] = "users/UserEntity.java"
+		templateMap["users/JpaUserRepository.java.tmpl"] = "users/UserRepository.java"
+	}
+	if pc.PersistenceType == SpringJdbcClient {
+		templateMap["users/JdbcClientUserEntity.java.tmpl"] = "users/UserEntity.java"
+		templateMap["users/JdbcClientUserRepository.java.tmpl"] = "users/UserRepository.java"
 	}
 
-	if pc.WebSecurity {
+	if pc.AppType == WebApp {
 		templateMap["config/WebSecurityConfig.java.tmpl"] = "config/WebSecurityConfig.java"
 		templateMap["config/WebAppExceptionHandler.java.tmpl"] = "config/GlobalExceptionHandler.java"
 		templateMap["users/UserController.java.tmpl"] = "users/UserController.java"
 	}
 
-	if pc.JwtSecurity {
+	if pc.AppType == RestApi {
 		templateMap["config/JwtWebSecurityConfig.java.tmpl"] = "config/WebSecurityConfig.java"
 		templateMap["users/AuthToken.java.tmpl"] = "users/AuthToken.java"
 		templateMap["users/TokenHelper.java.tmpl"] = "users/TokenHelper.java"
@@ -71,11 +73,11 @@ func (s SecurityConfig) createSrcTestJava(pc ProjectConfig) error {
 
 	templateMap := map[string]string{}
 
-	if pc.WebSecurity {
+	if pc.AppType == WebApp {
 		templateMap["users/UserControllerTests.java.tmpl"] = "users/UserControllerTests.java"
 	}
 
-	if pc.JwtSecurity {
+	if pc.AppType == RestApi {
 		templateMap["users/LoginRestControllerTests.java.tmpl"] = "users/LoginRestControllerTests.java"
 		templateMap["users/UserRestControllerTests.java.tmpl"] = "users/UserRestControllerTests.java"
 	}

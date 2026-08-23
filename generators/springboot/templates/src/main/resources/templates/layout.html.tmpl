@@ -2,9 +2,7 @@
 <html lang="en"
       xmlns:hx="http://www.w3.org/1999/xhtml"
       xmlns:th="http://www.thymeleaf.org"
-{{- if or .WebSecurity .JwtSecurity }}
       xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
-{{ end }}
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
 <head>
     <meta charset="utf-8"/>
@@ -42,7 +40,6 @@
             </div>
             <div class="hidden md:block">
                 <div class="ml-4 flex items-center md:ml-6 space-x-4">
-                    {{- if .WebSecurity }}
                     <div sec:authorize="isAnonymous()">
                         <a th:href="@{/login}" class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                             <i class="fas fa-sign-in-alt"></i> Login
@@ -68,7 +65,6 @@
                             </form>
                         </div>
                     </div>
-                    {{ end }}
                 </div>
             </div>
             <div class="md:hidden">
@@ -80,7 +76,6 @@
     </div>
     <div class="md:hidden hidden" id="mobile-menu">
         <div class="space-y-1 px-2 pb-3 pt-2">
-            {{- if .WebSecurity }}
             <div sec:authorize="isAnonymous()">
                 <a th:href="@{/login}" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
                     <i class="fas fa-sign-in-alt"></i> Login
@@ -96,7 +91,6 @@
                     </button>
                 </form>
             </div>
-            {{ end }}
         </div>
     </div>
 </nav>
@@ -141,7 +135,7 @@
     </div>
 </div>
 
-{{- if .HTMX }}
+{{- if .HTMXSupport }}
 <script th:src="@{/webjars/htmx.org/dist/htmx.min.js}"></script>
 {{ end }}
 <div layout:fragment="pageScripts">

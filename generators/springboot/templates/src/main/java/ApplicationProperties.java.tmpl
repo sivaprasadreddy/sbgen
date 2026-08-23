@@ -4,15 +4,15 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.validation.annotation.Validated;
 
 @ConfigurationProperties(prefix = "app")
+@Validated
 public record ApplicationProperties(
         {{- if eq .AppType "REST API" }}
-        CorsProperties cors,
-        OpenApiProperties openApi
-        {{- if .JwtSecurity }}
-        ,JwtProperties jwt
-        {{ end }}
+        @Valid CorsProperties cors,
+        @Valid OpenApiProperties openApi,
+        @Valid JwtProperties jwt
         {{ end }}
         ) {
 
@@ -35,9 +35,7 @@ public record ApplicationProperties(
                 @DefaultValue("SivaLabs") String name,
                 @DefaultValue("support@sivalabs.in") String email) {}
     }
-{{ end }}
 
-{{- if .JwtSecurity }}
     public record JwtProperties(
             @DefaultValue("{{ .AppName }}") String issuer,
             @DefaultValue("604800") Long expiresIn,

@@ -134,39 +134,31 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 	appType := springboot.RestApi
 	if configuration.Frontend.Type == "thymeleaf" {
 		appType = springboot.WebApp
-	} else if configuration.Frontend.Type == "angular" {
-		appType = springboot.SpringBootAngular
 	}
 	databaseTypes := map[string]springboot.DatabaseType{
 		"postgresql": springboot.PostgreSQL,
 		"mysql":      springboot.MySQL,
 		"mariadb":    springboot.MariaDB,
-		"h2":         springboot.H2,
 	}
 	migrationTools := map[string]springboot.DbMigrationTool{
-		"none":      springboot.None,
 		"flyway":    springboot.Flyway,
 		"liquibase": springboot.Liquibase,
 	}
 
 	return springboot.ProjectConfig{
-		AppType:         appType,
-		AppName:         strings.TrimSpace(configuration.Project.ArtifactID),
-		GroupID:         strings.TrimSpace(configuration.Project.GroupID),
-		ArtifactID:      strings.TrimSpace(configuration.Project.ArtifactID),
-		AppVersion:      "1.0.0",
-		BasePackage:     configuration.Project.PackageName,
-		BuildTool:       buildTool,
-		DbType:          databaseTypes[configuration.Database.Engine],
-		DbMigrationTool: migrationTools[configuration.Database.MigrationTool],
-		DockerCompose:   contains(configuration.Features, "docker-compose"),
-		SpringModulith:  contains(configuration.Features, "spring-modulith"),
-		SpringCloudAWS:  contains(configuration.Features, "spring-cloud-aws"),
-		Email:           contains(configuration.Features, "email"),
-		Thymeleaf:       configuration.Frontend.Type == "thymeleaf",
-		HTMX:            configuration.Frontend.HTMX,
-		WebSecurity:     configuration.Security.Mode == "http-session",
-		JwtSecurity:     configuration.Security.Mode == "jwt-security",
+		AppType:               appType,
+		AppName:               strings.TrimSpace(configuration.Project.ArtifactID),
+		GroupID:               strings.TrimSpace(configuration.Project.GroupID),
+		ArtifactID:            strings.TrimSpace(configuration.Project.ArtifactID),
+		AppVersion:            "1.0.0",
+		BasePackage:           configuration.Project.PackageName,
+		BuildTool:             buildTool,
+		DbType:                databaseTypes[configuration.Database.Engine],
+		DbMigrationTool:       migrationTools[configuration.Database.MigrationTool],
+		SpringCloudAWSSupport: contains(configuration.Features, "spring-cloud-aws"),
+		EmailSupport:          contains(configuration.Features, "email"),
+		ThymeleafSupport:      configuration.Frontend.Type == "thymeleaf",
+		HTMXSupport:           configuration.Frontend.HTMX,
 	}
 }
 

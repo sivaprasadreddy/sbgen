@@ -1,7 +1,7 @@
 services:
   {{- if eq .DbType "PostgreSQL" }}
   postgres:
-    image: postgres:18-alpine
+    image: {{ .PostgresImage }}
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -11,7 +11,7 @@ services:
   {{- end }}
   {{- if eq .DbType "MySQL" }}
   mysql:
-    image: mysql:8.1.0
+    image: {{ .MysqlImage }}
     environment:
       - MYSQL_DATABASE=test
       - MYSQL_USER=user
@@ -22,7 +22,7 @@ services:
   {{- end }}
   {{- if eq .DbType "MariaDB" }}
   mariadb:
-    image: mariadb:12
+    image: {{ .MariadbImage }}
     environment:
       - MYSQL_DATABASE=test
       - MYSQL_USER=user
@@ -31,9 +31,9 @@ services:
     ports:
       - "3306:3306"
   {{- end }}
-  {{- if .SpringCloudAWS }}
+  {{ if .SpringCloudAWSSupport }}
   floci:
-    image: floci/floci:latest-compat
+    image: {{ .FlociImage }}
     ports:
       - "4566:4566"
     volumes:
@@ -42,9 +42,10 @@ services:
     environment:
       AWS_DEFAULT_REGION: us-east-1
   {{- end }}
-  {{- if .Email }}
+
+  {{- if .EmailSupport }}
   mailpit:
-    image: axllent/mailpit:v1.30
+    image: {{ .MailpitImage }}
     ports:
       - "1025:1025"
       - "8025:8025"
@@ -55,10 +56,6 @@ services:
     container_name: {{ .ArtifactID }}
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      {{- if .Email }}
-      EMAIL_HOST: mailpit
-      EMAIL_PORT: 1025
-      {{- end }}
       {{- if eq .DbType "PostgreSQL" }}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres
       SPRING_DATASOURCE_USERNAME: postgres
@@ -74,6 +71,16 @@ services:
       SPRING_DATASOURCE_USERNAME: user
       SPRING_DATASOURCE_PASSWORD: secret
       {{- end }}
+      {{- if .EmailSupport }}
+      EMAIL_HOST: mailpit
+      EMAIL_PORT: 1025
+      {{- end }}
+      {{- if .SpringCloudAWSSupport }}
+      SPRING_CLOUD_AWS_ENDPOINT: http://localhost:4566
+      SPRING_CLOUD_AWS_S3_ENDPOINT: http://localhost:4566
+      SPRING_CLOUD_AWS_CREDENTIALS_ACCESS_KEY: test
+      SPRING_CLOUD_AWS_CREDENTIALS_SECRET_KEY: test
+      {{- end }}
     ports:
       - "8080:8080"
     depends_on:
@@ -86,8 +93,11 @@ services:
       {{- if eq .DbType "MariaDB" }}
       - mariadb
       {{- end }}
-      {{- if .Email }}
+      {{- if .EmailSupport }}
       - mailpit
+      {{- end }}
+      {{- if .SpringCloudAWSSupport }}
+      - floci
       {{- end }}
     restart: unless-stopped
     profiles:

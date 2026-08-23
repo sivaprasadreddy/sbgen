@@ -1,5 +1,6 @@
 plugins {
 	id "java"
+	id "jacoco"
 	id "org.springframework.boot" version "{{ .SpringBootVersion }}"
     id "io.spring.dependency-management" version "{{ .GradleDependencyMgmtVersion }}"
     id "com.gorylenko.gradle-git-properties" version "{{ .GradleGitPropertiesVersion }}"
@@ -29,53 +30,54 @@ ext {
 {{- if eq .AppType "REST API" }}
   set('springdocOpenapiVersion', "{{ .SpringdocOpenapiVersion }}")
 {{- end }}
-{{- if .SpringCloudAWS }}
+{{- if .SpringCloudAWSSupport }}
   set('awspringVersion', "{{ .SpringCloudAWSVersion }}")
   set('bootTcFlociVersion', "{{ .SpringBootFlociTcVersion }}")
 {{- end }}
-{{- if .SpringModulith }}
   set('springModulithVersion', "{{ .SpringModulithVersion }}")
-{{- end }}
-{{- if .Thymeleaf }}
+{{- if .ThymeleafSupport }}
   set('fontawesomeVersion', "{{ .FontAwesomeVersion }}")
 {{- end }}
-{{- if .HTMX }}
+{{- if .HTMXSupport }}
   set('htmxVersion', "{{ .HtmxVersion }}")
 {{- end }}
-{{- if and .Thymeleaf .HTMX }}
+{{- if and .ThymeleafSupport .HTMXSupport }}
   set('htmxSpringBootThymeleafVersion', "{{ .HtmxSpringBootThymeleafVersion }}")
 {{- end }}
-{{- if .JwtSecurity }}
+{{- if eq .AppType "REST API" }}
   set('jjwtVersion', "{{ .JjwtVersion }}")
 {{- end }}
-{{- if .Email }}
+{{- if .EmailSupport }}
   set('tcMailpitVersion', "{{ .TcMailpitVersion }}")
 {{- end }}
+  set('bootUIVersion', "{{ .BootUIVersion }}")
   set('palantirJavaFormatVersion', "{{ .PalantirJavaFormatVersion }}")
   set('archunitVersion', "{{ .ArchunitVersion }}")
+  set('taikaiVersion', "{{ .TaikaiVersion }}")
 }
 
 dependencies {
     implementation "org.springframework.boot:spring-boot-starter-webmvc"
     implementation "org.springframework.boot:spring-boot-starter-validation"
     implementation "org.springframework.boot:spring-boot-starter-actuator"
-    {{- if or .WebSecurity .JwtSecurity }}
     implementation "org.springframework.boot:spring-boot-starter-security"
-    {{- end }}
-    {{- if .Thymeleaf }}
+    {{- if .ThymeleafSupport }}
     implementation "org.springframework.boot:spring-boot-starter-thymeleaf"
     implementation "nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect"
-    {{- if .WebSecurity }}
     implementation "org.thymeleaf.extras:thymeleaf-extras-springsecurity6"
-    {{- end }}
-    {{- if .HTMX }}
+    {{- if .HTMXSupport }}
     implementation "io.github.wimdeblauwe:htmx-spring-boot-thymeleaf:${htmxSpringBootThymeleafVersion}"
     {{- end }}
     {{- end }}
     {{- if eq .AppType "REST API" }}
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocOpenapiVersion}"
     {{- end }}
+    {{- if eq .PersistenceType "Spring Data JPA" }}
     implementation "org.springframework.boot:spring-boot-starter-data-jpa"
+    {{- end }}
+    {{- if eq .PersistenceType "Spring JdbcClient" }}
+    implementation "org.springframework.boot:spring-boot-starter-jdbc"
+    {{- end }}
     {{- if eq .DbType "PostgreSQL" }}
     runtimeOnly "org.postgresql:postgresql"
     {{- end }}
@@ -84,10 +86,6 @@ dependencies {
     {{- end }}
     {{- if eq .DbType "MariaDB" }}
     runtimeOnly "org.mariadb.jdbc:mariadb-java-client"
-    {{- end }}
-    {{- if eq .DbType "H2" }}
-    runtimeOnly "com.h2database:h2"
-    implementation "org.springframework.boot:spring-boot-h2console"
     {{- end }}
     {{- if eq .DbMigrationTool "Flyway"}}
     implementation "org.springframework.boot:spring-boot-starter-flyway"
@@ -101,42 +99,44 @@ dependencies {
     {{- if eq .DbMigrationTool "Liquibase"}}
     implementation "org.springframework.boot:spring-boot-starter-liquibase"
     {{- end }}
-    {{- if .SpringModulith }}
     implementation "org.springframework.modulith:spring-modulith-starter-core"
-    implementation "org.springframework.modulith:spring-modulith-starter-jdbc"
     implementation "org.springframework.modulith:spring-modulith-docs"
     runtimeOnly 'org.springframework.modulith:spring-modulith-actuator'
-    {{- end }}
-    {{- if .SpringCloudAWS }}
+    {{- if .SpringCloudAWSSupport }}
     implementation "io.awspring.cloud:spring-cloud-aws-starter"
     implementation "io.awspring.cloud:spring-cloud-aws-starter-s3"
     {{- end }}
-    {{- if .Email }}
+    {{- if .EmailSupport }}
     implementation "org.springframework.boot:spring-boot-starter-mail"
     {{- end }}
-    {{- if .Thymeleaf }}
+    {{- if .ThymeleafSupport }}
     implementation "org.webjars:webjars-locator-lite"
     implementation "org.webjars:font-awesome:${fontawesomeVersion}"
     {{- end }}
-    {{- if .HTMX }}
+    {{- if .HTMXSupport }}
     implementation "org.webjars.npm:htmx.org:${htmxVersion}"
     {{- end }}
-    {{- if .JwtSecurity }}
+    {{- if eq .AppType "REST API" }}
     implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
     implementation "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
     implementation "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
     {{- end }}
+    implementation "com.julien-dubois.bootui:bootui-spring-boot-starter:${bootUIVersion}"
+
     developmentOnly "org.springframework.boot:spring-boot-devtools"
     annotationProcessor "org.springframework.boot:spring-boot-configuration-processor"
-    {{- if .DockerCompose }}
     developmentOnly "org.springframework.boot:spring-boot-docker-compose"
-    {{- end }}
 
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
+    {{- if eq .PersistenceType "Spring Data JPA" }}
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+    {{- end }}
+    {{- if eq .PersistenceType "Spring JdbcClient" }}
+    testImplementation 'org.springframework.boot:spring-boot-starter-jdbc-test'
+    {{- end }}
 
     {{- if eq .DbMigrationTool "Flyway"}}
     testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
@@ -144,15 +144,11 @@ dependencies {
     {{- if eq .DbMigrationTool "Liquibase"}}
     testImplementation 'org.springframework.boot:spring-boot-starter-liquibase-test'
     {{- end }}
-    {{- if or .WebSecurity .JwtSecurity }}
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
-    {{- end }}
-    {{- if .Thymeleaf }}
+    {{- if .ThymeleafSupport }}
     testImplementation 'org.springframework.boot:spring-boot-starter-thymeleaf-test'
     {{- end }}
-    {{- if .SpringModulith }}
     testImplementation "org.springframework.modulith:spring-modulith-starter-test"
-    {{- end }}
     testImplementation "org.springframework.boot:spring-boot-testcontainers"
     testImplementation "org.testcontainers:testcontainers-junit-jupiter"
     {{- if eq .DbType "PostgreSQL" }}
@@ -164,23 +160,23 @@ dependencies {
     {{- if eq .DbType "MariaDB" }}
     testImplementation "org.testcontainers:testcontainers-mariadb"
     {{- end }}
-    {{- if .SpringCloudAWS }}
+    {{- if .SpringCloudAWSSupport }}
     testImplementation "io.floci:spring-boot-testcontainers-floci:${bootTcFlociVersion}"
     {{- end }}
-    {{- if .Email }}
+    {{- if .EmailSupport }}
     testImplementation "ch.martinelli.oss:testcontainers-mailpit:${tcMailpitVersion}"
     {{- end }}
+    testImplementation "org.awaitility:awaitility"
     testImplementation "com.tngtech.archunit:archunit-junit5:${archunitVersion}"
+    testImplementation "com.enofex:taikai:${taikaiVersion}"
 }
 
 dependencyManagement {
     imports {
-        {{- if .SpringCloudAWS }}
+        {{- if .SpringCloudAWSSupport }}
         mavenBom "io.awspring.cloud:spring-cloud-aws-dependencies:${awspringVersion}"
         {{- end }}
-        {{- if .SpringModulith }}
         mavenBom "org.springframework.modulith:spring-modulith-bom:${springModulithVersion}"
-        {{- end }}
     }
 }
 
@@ -190,11 +186,36 @@ tasks.named("bootBuildImage") {
 
 tasks.named("test") {
 	useJUnitPlatform()
+	finalizedBy tasks.named("jacocoTestReport")
 	testLogging {
 		events = ["PASSED", "FAILED", "SKIPPED"]
 		showStandardStreams = true
 		exceptionFormat = "full"
 	}
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true
+    }
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+    dependsOn tasks.named('test')
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.40
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
 }
 
 gitProperties {

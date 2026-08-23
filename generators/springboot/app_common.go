@@ -33,37 +33,21 @@ func (a AppCommonConfig) createSrcMainJava(pc ProjectConfig) error {
 		"Application.java.tmpl":                      "Application.java",
 		"ApplicationProperties.java.tmpl":            "ApplicationProperties.java",
 		"config/WebMvcConfig.java.tmpl":              "config/WebMvcConfig.java",
-		"config/PersistenceConfig.java.tmpl":         "config/PersistenceConfig.java",
-		"shared/BaseEntity.java.tmpl":                "shared/BaseEntity.java",
 		"shared/PagedResult.java.tmpl":               "shared/PagedResult.java",
-		"shared/AuthUtils.java.tmpl":                 "shared/AuthUtils.java",
 		"shared/BadRequestException.java.tmpl":       "shared/BadRequestException.java",
 		"shared/ResourceNotFoundException.java.tmpl": "shared/ResourceNotFoundException.java",
+	}
+	if pc.PersistenceType == SpringDataJPA {
+		templateMap["config/PersistenceConfig.java.tmpl"] = "config/PersistenceConfig.java"
+		templateMap["shared/JpaBaseEntity.java.tmpl"] = "shared/BaseEntity.java"
+	}
+	if pc.PersistenceType == SpringJdbcClient {
+		templateMap["shared/JdbcClientBaseEntity.java.tmpl"] = "shared/BaseEntity.java"
 	}
 
 	for tmpl, filePath := range templateMap {
 		err := a.pg.executeTemplate(pc, srcMainJavaPath+tmpl, srcMainJavaPath+basePackagePath+"/"+filePath)
 		if err != nil {
-			return err
-		}
-	}
-	if pc.Email {
-		if err := a.pg.executeTemplate(pc, srcMainJavaPath+"shared/email/EmailService.java.tmpl", srcMainJavaPath+basePackagePath+"/shared/email/EmailService.java"); err != nil {
-			return err
-		}
-	}
-	if pc.SpringModulith {
-		if err := a.pg.executeTemplate(pc, srcMainJavaPath+"shared/package-info.java.tmpl", srcMainJavaPath+basePackagePath+"/shared/package-info.java"); err != nil {
-			return err
-		}
-	}
-	if pc.DbMigrationTool == Flyway {
-		if err := a.pg.executeTemplate(pc, srcMainJavaPath+"config/FlywayConfig.java.tmpl", srcMainJavaPath+basePackagePath+"/config/FlywayConfig.java"); err != nil {
-			return err
-		}
-	}
-	if pc.AppType == RestApi {
-		if err := a.pg.executeTemplate(pc, srcMainJavaPath+"config/OpenApiConfig.java.tmpl", srcMainJavaPath+basePackagePath+"/config/OpenApiConfig.java"); err != nil {
 			return err
 		}
 	}
@@ -91,7 +75,8 @@ func (a AppCommonConfig) createSrcTestJava(pc ProjectConfig) error {
 	templateMap := map[string]string{
 		"ApplicationTests.java.tmpl":     "ApplicationTests.java",
 		"TestcontainersConfig.java.tmpl": "TestcontainersConfig.java",
-		"BaseIntegrationTest.java.tmpl":  "BaseIntegrationTest.java",
+		"BaseIT.java.tmpl":               "BaseIT.java",
+		"ArchUnitTests.java.tmpl":        "ArchUnitTests.java",
 		"TestApplication.java.tmpl":      "TestApplication.java",
 	}
 

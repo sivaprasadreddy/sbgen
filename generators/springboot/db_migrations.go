@@ -1,5 +1,7 @@
 package springboot
 
+import "strings"
+
 type DbMigrationsConfig struct {
 	pg projectGenerator
 }
@@ -9,10 +11,26 @@ func NewDbMigrationsConfig(pg projectGenerator) *DbMigrationsConfig {
 }
 
 func (d DbMigrationsConfig) generate(pc ProjectConfig) error {
-	return d.createDbMigrationFiles(pc)
+	if err := d.createSrcMainJava(pc); err != nil {
+		return err
+	}
+	if err := d.createSrcMainResources(pc); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (d DbMigrationsConfig) createDbMigrationFiles(pc ProjectConfig) error {
+func (d DbMigrationsConfig) createSrcMainJava(pc ProjectConfig) error {
+	basePackagePath := strings.ReplaceAll(pc.BasePackage, ".", "/")
+	if pc.DbMigrationTool == Flyway {
+		if err := d.pg.executeTemplate(pc, srcMainJavaPath+"config/FlywayConfig.java.tmpl", srcMainJavaPath+basePackagePath+"/config/FlywayConfig.java"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (d DbMigrationsConfig) createSrcMainResources(pc ProjectConfig) error {
 	templateMap := map[string]string{}
 
 	if pc.DbMigrationTool == Flyway {
@@ -23,8 +41,6 @@ func (d DbMigrationsConfig) createDbMigrationFiles(pc ProjectConfig) error {
 			templateMap["db/migration/flyway/V001__create_users_table_mysql.sql"] = "db/migration/V001__create_users_table.sql"
 		case MariaDB:
 			templateMap["db/migration/flyway/V001__create_users_table_mariadb.sql"] = "db/migration/V001__create_users_table.sql"
-		case H2:
-			templateMap["db/migration/flyway/V001__create_users_table_h2.sql"] = "db/migration/V001__create_users_table.sql"
 		}
 	}
 
@@ -38,9 +54,6 @@ func (d DbMigrationsConfig) createDbMigrationFiles(pc ProjectConfig) error {
 			templateMap["db/migration/liquibase/changelog/001-create_users_table-mysql.xml"] = "db/migration/changelog/001-create_users_table.xml"
 		case MariaDB:
 			templateMap["db/migration/liquibase/changelog/001-create_users_table-mariadb.xml"] = "db/migration/changelog/001-create_users_table.xml"
-		case H2:
-			templateMap["db/migration/liquibase/changelog/001-create_users_table-h2.xml"] = "db/migration/changelog/001-create_users_table.xml"
-
 		}
 	}
 
