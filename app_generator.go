@@ -144,6 +144,10 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		"flyway":    springboot.Flyway,
 		"liquibase": springboot.Liquibase,
 	}
+	persistenceTypes := map[string]springboot.PersistenceType{
+		"spring-data-jpa":    springboot.SpringDataJPA,
+		"spring-jdbc-client": springboot.SpringJdbcClient,
+	}
 
 	return springboot.ProjectConfig{
 		AppType:               appType,
@@ -155,6 +159,7 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		BuildTool:             buildTool,
 		DbType:                databaseTypes[configuration.Database.Engine],
 		DbMigrationTool:       migrationTools[configuration.Database.MigrationTool],
+		PersistenceType:       persistenceTypes[configuration.Database.PersistenceFramework],
 		SpringCloudAWSSupport: contains(configuration.Features, "spring-cloud-aws"),
 		EmailSupport:          contains(configuration.Features, "email"),
 		ThymeleafSupport:      configuration.Frontend.Type == "thymeleaf",
@@ -233,13 +238,13 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if configuration.Frontend.HTMX && configuration.Frontend.Type != "thymeleaf" {
 		return fmt.Errorf("HTMX support requires the Thymeleaf frontend")
 	}
-	if !contains([]string{"postgresql", "mysql", "mariadb", "h2"}, configuration.Database.Engine) {
+	if !contains([]string{"postgresql", "mysql", "mariadb"}, configuration.Database.Engine) {
 		return fmt.Errorf("unsupported database engine %q", configuration.Database.Engine)
 	}
-	if !contains([]string{"none", "flyway", "liquibase"}, configuration.Database.MigrationTool) {
+	if !contains([]string{"flyway", "liquibase"}, configuration.Database.MigrationTool) {
 		return fmt.Errorf("unsupported migration tool %q", configuration.Database.MigrationTool)
 	}
-	if configuration.Database.PersistenceFramework != "spring-data-jpa" {
+	if !contains([]string{"spring-data-jpa", "spring-jdbc-client"}, configuration.Database.PersistenceFramework) {
 		return fmt.Errorf("unsupported persistence framework %q", configuration.Database.PersistenceFramework)
 	}
 	if !contains([]string{"none", "http-session", "jwt-security"}, configuration.Security.Mode) {

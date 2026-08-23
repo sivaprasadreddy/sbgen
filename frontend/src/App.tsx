@@ -6,17 +6,15 @@ const steps = ['Welcome', 'Project', 'Frontend', 'Database', 'Security', 'Featur
 type BuildTool = 'maven' | 'gradle-groovy'
 type Frontend = 'none' | 'thymeleaf' | 'angular'
 type CssFramework = 'tailwind'
-type DatabaseEngine = 'postgresql' | 'mysql' | 'mariadb' | 'h2'
-type MigrationTool = 'none' | 'flyway' | 'liquibase'
-type PersistenceFramework = 'spring-data-jpa'
+type DatabaseEngine = 'postgresql' | 'mysql' | 'mariadb'
+type MigrationTool = 'flyway' | 'liquibase'
+type PersistenceFramework = 'spring-data-jpa' | 'spring-jdbc-client'
 type SecurityMode = 'http-session' | 'jwt-security'
-type Feature = 'email' | 'docker-compose' | 'spring-modulith' | 'spring-cloud-aws'
+type Feature = 'email' | 'spring-cloud-aws'
 
 const featureOptions: ReadonlyArray<readonly [Feature, string, string]> = [
-  ['spring-modulith', 'Spring Modulith', 'Build well-structured modular Spring applications'],
   ['spring-cloud-aws', 'Spring Cloud AWS', 'Integrate with AWS services using Spring'],
   ['email', 'Email', 'Send transactional and application emails'],
-  ['docker-compose', 'Docker Compose', 'Run supporting services for local development'],
 ]
 
 const labels: Record<string, string> = {
@@ -29,15 +27,13 @@ const labels: Record<string, string> = {
   postgresql: 'PostgreSQL',
   mysql: 'MySQL',
   mariadb: 'MariaDB',
-  h2: 'H2',
   flyway: 'Flyway',
   liquibase: 'Liquibase',
   'spring-data-jpa': 'Spring Data JPA',
+  'spring-jdbc-client': 'Spring JdbcClient',
   'http-session': 'HTTP Session based Security',
   'jwt-security': 'JWT Security',
   email: 'Email',
-  'docker-compose': 'Docker Compose',
-  'spring-modulith': 'Spring Modulith',
   'spring-cloud-aws': 'Spring Cloud AWS',
 }
 
@@ -100,7 +96,7 @@ function App() {
   const [savedDatabase, setSavedDatabase] = useState<DatabaseConfiguration | null>(null)
   const [security, setSecurity] = useState<SecurityConfiguration>(initialSecurityConfiguration)
   const [savedSecurity, setSavedSecurity] = useState<SecurityConfiguration | null>(null)
-  const [features, setFeatures] = useState<Feature[]>(['spring-modulith', 'docker-compose'])
+  const [features, setFeatures] = useState<Feature[]>([])
   const [savedFeatures, setSavedFeatures] = useState<Feature[] | null>(null)
   const [downloadedFilePath, setDownloadedFilePath] = useState('')
   const [generationError, setGenerationError] = useState('')
@@ -188,7 +184,7 @@ function App() {
     setSavedDatabase(null)
     setSecurity(initialSecurityConfiguration)
     setSavedSecurity(null)
-    setFeatures(['spring-modulith', 'docker-compose'])
+    setFeatures([])
     setSavedFeatures(null)
     setDownloadedFilePath('')
     setGenerationError('')
@@ -358,7 +354,6 @@ function App() {
                   ['postgresql', 'PostgreSQL', 'Reliable, advanced SQL database'],
                   ['mysql', 'MySQL', 'Popular open-source SQL database'],
                   ['mariadb', 'MariaDB', 'Community-developed MySQL alternative'],
-                  ['h2', 'H2', 'Lightweight in-memory SQL database'],
                 ] as const).map(([value, label, description]) => (
                   <label className={database.engine === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="database" value={value} checked={database.engine === value} onChange={() => updateDatabase('engine', value)} />
@@ -373,6 +368,7 @@ function App() {
               <div className="build-options database-options">
                 {([
                   ['spring-data-jpa', 'Spring Data JPA', 'Repository-based persistence with JPA'],
+                  ['spring-jdbc-client', 'Spring JdbcClient', 'Fluent JDBC-based database access'],
                 ] as const).map(([value, label, description]) => (
                   <label className={database.persistenceFramework === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="persistenceFramework" value={value} checked={database.persistenceFramework === value} onChange={() => updateDatabase('persistenceFramework', value)} />
@@ -386,7 +382,6 @@ function App() {
               <legend>Database Migration Tool</legend>
               <div className="build-options">
                 {([
-                  ['none', 'None', 'No migration tool'],
                   ['flyway', 'Flyway', 'Versioned SQL migrations'],
                   ['liquibase', 'Liquibase', 'Flexible database change tracking'],
                 ] as const).map(([value, label, description]) => (
