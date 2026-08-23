@@ -226,7 +226,7 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if !contains([]string{"maven", "gradle-groovy"}, configuration.Project.BuildTool) {
 		return fmt.Errorf("unsupported build tool %q", configuration.Project.BuildTool)
 	}
-	if !contains([]string{"none", "thymeleaf", "angular"}, configuration.Frontend.Type) {
+	if !contains([]string{"none", "thymeleaf"}, configuration.Frontend.Type) {
 		return fmt.Errorf("unsupported frontend type %q", configuration.Frontend.Type)
 	}
 	if configuration.Frontend.CSSFramework != nil && *configuration.Frontend.CSSFramework != "tailwind" {
@@ -253,11 +253,11 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if configuration.Security.Mode == "http-session" && configuration.Frontend.Type != "thymeleaf" {
 		return fmt.Errorf("HTTP-session security requires the Thymeleaf frontend")
 	}
-	if configuration.Security.Mode == "jwt-security" && !contains([]string{"none", "angular"}, configuration.Frontend.Type) {
-		return fmt.Errorf("OAuth resource-server security requires no frontend or the Angular frontend")
+	if configuration.Security.Mode == "jwt-security" && configuration.Frontend.Type != "none" {
+		return fmt.Errorf("JWT-security with Thymeleaf frontend is invalid")
 	}
 	for _, feature := range configuration.Features {
-		if !contains([]string{"email", "docker-compose", "spring-modulith", "spring-cloud-aws"}, feature) {
+		if !contains([]string{"email", "spring-cloud-aws"}, feature) {
 			return fmt.Errorf("unsupported feature %q", feature)
 		}
 	}

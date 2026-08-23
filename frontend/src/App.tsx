@@ -4,7 +4,7 @@ import { AppGeneratorService } from '../bindings/github.com/sivaprasadreddy/sbge
 const steps = ['Welcome', 'Project', 'Frontend', 'Database', 'Security', 'Features', 'Review', 'Complete']
 
 type BuildTool = 'maven' | 'gradle-groovy'
-type Frontend = 'none' | 'thymeleaf' | 'angular'
+type Frontend = 'none' | 'thymeleaf'
 type CssFramework = 'tailwind'
 type DatabaseEngine = 'postgresql' | 'mysql' | 'mariadb'
 type MigrationTool = 'flyway' | 'liquibase'
@@ -22,7 +22,6 @@ const labels: Record<string, string> = {
   'gradle-groovy': 'Gradle – Groovy',
   none: 'None',
   thymeleaf: 'Thymeleaf',
-  angular: 'Angular',
   tailwind: 'Tailwind CSS',
   postgresql: 'PostgreSQL',
   mysql: 'MySQL',
@@ -282,7 +281,6 @@ function App() {
                 {([
                   ['none', 'None', 'Backend REST API only'],
                   ['thymeleaf', 'Thymeleaf', 'Server-rendered web application'],
-                  ['angular', 'Angular', 'Single Page Application'],
                 ] as const).map(([value, label, description]) => (
                   <label className={frontend.frontend === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="frontend" value={value} checked={frontend.frontend === value} onChange={() => {
@@ -418,7 +416,7 @@ function App() {
                   </label>
                 )}
 
-                {(savedFrontend.frontend === 'none' || savedFrontend.frontend === 'angular') && (
+                {savedFrontend.frontend === 'none' && (
                   <label className={security.mode === 'jwt-security' ? 'selected' : ''}>
                     <input type="radio" name="securityMode" value="jwt-security" checked={security.mode === 'jwt-security'} onChange={() => setSecurity({ mode: 'jwt-security' })} />
                     <span><strong>JWT Security</strong><small>Token-based security for API access</small></span>
