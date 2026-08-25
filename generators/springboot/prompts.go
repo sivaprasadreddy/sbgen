@@ -28,6 +28,7 @@ func getProjectConfigAnswers() (*ProjectConfig, error) {
 				Options(
 					huh.NewOption(RestApi.String(), RestApi).Selected(true),
 					huh.NewOption(WebApp.String(), WebApp),
+					huh.NewOption(SpringBootAngularFullStack.String(), SpringBootAngularFullStack),
 				).Value(&appType),
 		),
 	)
@@ -114,6 +115,7 @@ func getProjectConfigAnswers() (*ProjectConfig, error) {
 			Options(
 				huh.NewOption(SpringDataJPA.String(), SpringDataJPA).Selected(true),
 				huh.NewOption(SpringJdbcClient.String(), SpringJdbcClient),
+				huh.NewOption(SpringJOOQ.String(), SpringJOOQ),
 			).Value(&answers.PersistenceType),
 
 		huh.NewSelect[DatabaseType]().
@@ -135,6 +137,10 @@ func getProjectConfigAnswers() (*ProjectConfig, error) {
 	otherFeatureOptions := []huh.Option[string]{
 		huh.NewOption(FeatureSpringCloudAWSSupport, FeatureSpringCloudAWSSupport),
 		huh.NewOption(FeatureEmailSupport, FeatureEmailSupport),
+		huh.NewOption(FeatureRabbitMQSupport, FeatureRabbitMQSupport),
+		huh.NewOption(FeatureRedisCachingSupport, FeatureRedisCachingSupport),
+		huh.NewOption(FeatureOpenTelemetrySupport, FeatureOpenTelemetrySupport),
+		huh.NewOption(FeatureK8sSupport, FeatureK8sSupport),
 	}
 
 	if answers.AppType == WebApp {
@@ -144,7 +150,7 @@ func getProjectConfigAnswers() (*ProjectConfig, error) {
 	otherFeaturesSelect := huh.NewMultiSelect[string]().
 		Title("Select Features:").
 		Options(otherFeatureOptions...).
-		Height(len(otherFeatureOptions) + 2).
+		Height(len(otherFeatureOptions) + 3).
 		Value(&features)
 
 	inputs = append(inputs, otherFeaturesSelect)
@@ -182,6 +188,10 @@ func updateFeatureFlags(pc *ProjectConfig, features []string) {
 	pc.ThymeleafSupport = pc.AppType == WebApp
 	pc.HTMXSupport = isEnabled(features, FeatureHTMXSupport)
 	pc.EmailSupport = isEnabled(features, FeatureEmailSupport)
+	pc.RabbitMQSupport = isEnabled(features, FeatureRabbitMQSupport)
+	pc.RedisCachingSupport = isEnabled(features, FeatureRedisCachingSupport)
+	pc.OpenTelemetrySupport = isEnabled(features, FeatureOpenTelemetrySupport)
+	pc.K8sSupport = isEnabled(features, FeatureK8sSupport)
 }
 
 func isEnabled(features []string, feature string) bool {

@@ -9,8 +9,9 @@ const ProjectConfigFile = ".sbgen.json"
 type AppType string
 
 const (
-	RestApi AppType = "REST API"
-	WebApp  AppType = "Web App"
+	RestApi                    AppType = "REST API"
+	WebApp                     AppType = "Web App"
+	SpringBootAngularFullStack AppType = "Spring Boot + Angular Full Stack"
 )
 
 func (a AppType) String() string {
@@ -19,6 +20,8 @@ func (a AppType) String() string {
 		return "REST API"
 	case WebApp:
 		return "Web App"
+	case SpringBootAngularFullStack:
+		return "Spring Boot + Angular Full Stack"
 	default:
 		return "Unknown"
 	}
@@ -26,7 +29,7 @@ func (a AppType) String() string {
 
 func (a AppType) IsValid() bool {
 	switch a {
-	case RestApi, WebApp:
+	case RestApi, WebApp, SpringBootAngularFullStack:
 		return true
 	default:
 		return false
@@ -60,12 +63,13 @@ type PersistenceType string
 const (
 	SpringDataJPA    PersistenceType = "Spring Data JPA"
 	SpringJdbcClient PersistenceType = "Spring JdbcClient"
+	SpringJOOQ       PersistenceType = "jOOQ"
 )
 
 func (p PersistenceType) String() string { return string(p) }
 
 func (p PersistenceType) IsValid() bool {
-	return p == SpringDataJPA || p == SpringJdbcClient
+	return p == SpringDataJPA || p == SpringJdbcClient || p == SpringJOOQ
 }
 
 const (
@@ -110,3 +114,7 @@ func (s DbMigrationTool) IsValid() bool {
 const FeatureSpringCloudAWSSupport = "Spring Cloud AWS"
 const FeatureHTMXSupport = "HTMX"
 const FeatureEmailSupport = "Email"
+const FeatureRabbitMQSupport = "RabbitMQ"
+const FeatureRedisCachingSupport = "Redis Caching"
+const FeatureOpenTelemetrySupport = "OpenTelemetry"
+const FeatureK8sSupport = "Kubernetes Manifests"

@@ -17,6 +17,9 @@ func (s SecurityConfig) generate(pc ProjectConfig) error {
 	if err := s.createSrcTestJava(pc); err != nil {
 		return err
 	}
+	if err := s.createSrcTestResources(pc); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -30,10 +33,12 @@ func (s SecurityConfig) createSrcMainJava(pc ProjectConfig) error {
 		"users/SecurityUser.java.tmpl":               "users/SecurityUser.java",
 		"config/SecurityConfig.java.tmpl":            "config/SecurityConfig.java",
 		"users/SecurityUserDetailsService.java.tmpl": "users/SecurityUserDetailsService.java",
-		"users/UserContextUtils.java.tmpl":           "users/UserContextUtils.java",
 		"users/CreateUserCmd.java.tmpl":              "users/CreateUserCmd.java",
+		"users/UpdateUserCmd.java.tmpl":              "users/UpdateUserCmd.java",
 		"users/AuthUtils.java.tmpl":                  "users/AuthUtils.java",
+		"users/UserNotFoundException.java.tmpl":      "users/UserNotFoundException.java",
 	}
+
 	if pc.PersistenceType == SpringDataJPA {
 		templateMap["users/JpaUserEntity.java.tmpl"] = "users/UserEntity.java"
 		templateMap["users/JpaUserRepository.java.tmpl"] = "users/UserRepository.java"
@@ -42,6 +47,15 @@ func (s SecurityConfig) createSrcMainJava(pc ProjectConfig) error {
 		templateMap["users/JdbcClientUserEntity.java.tmpl"] = "users/UserEntity.java"
 		templateMap["users/JdbcClientUserRepository.java.tmpl"] = "users/UserRepository.java"
 	}
+	if pc.PersistenceType == SpringJOOQ {
+		templateMap["users/JooqUserEntity.java.tmpl"] = "users/UserEntity.java"
+		if pc.BuildTool == Maven {
+			templateMap["users/JooqUserRepository.java.tmpl"] = "users/UserRepository.java"
+		}
+		if pc.BuildTool == Gradle {
+			templateMap["users/GradleJooqUserRepository.java.tmpl"] = "users/UserRepository.java"
+		}
+	}
 
 	if pc.AppType == WebApp {
 		templateMap["config/WebSecurityConfig.java.tmpl"] = "config/WebSecurityConfig.java"
@@ -49,13 +63,13 @@ func (s SecurityConfig) createSrcMainJava(pc ProjectConfig) error {
 		templateMap["users/UserController.java.tmpl"] = "users/UserController.java"
 	}
 
-	if pc.AppType == RestApi {
+	if pc.RestApiEnabled() {
 		templateMap["config/JwtWebSecurityConfig.java.tmpl"] = "config/WebSecurityConfig.java"
 		templateMap["users/AuthToken.java.tmpl"] = "users/AuthToken.java"
 		templateMap["users/TokenHelper.java.tmpl"] = "users/TokenHelper.java"
 		templateMap["users/JwtFilter.java.tmpl"] = "users/JwtFilter.java"
 		templateMap["config/RestApiExceptionHandler.java.tmpl"] = "config/GlobalExceptionHandler.java"
-		templateMap["users/LoginRestController.java.tmpl"] = "users/LoginRestController.java"
+		templateMap["users/AuthController.java.tmpl"] = "users/AuthController.java"
 		templateMap["users/UserRestController.java.tmpl"] = "users/UserRestController.java"
 	}
 
@@ -77,13 +91,27 @@ func (s SecurityConfig) createSrcTestJava(pc ProjectConfig) error {
 		templateMap["users/UserControllerTests.java.tmpl"] = "users/UserControllerTests.java"
 	}
 
-	if pc.AppType == RestApi {
-		templateMap["users/LoginRestControllerTests.java.tmpl"] = "users/LoginRestControllerTests.java"
+	if pc.RestApiEnabled() {
+		templateMap["users/AuthControllerTests.java.tmpl"] = "users/AuthControllerTests.java"
 		templateMap["users/UserRestControllerTests.java.tmpl"] = "users/UserRestControllerTests.java"
 	}
 
 	for tmpl, filePath := range templateMap {
 		err := s.pg.executeTemplate(pc, srcTestJavaPath+tmpl, srcTestJavaPath+basePackagePath+"/"+filePath)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s SecurityConfig) createSrcTestResources(pc ProjectConfig) error {
+	templateMap := map[string]string{
+		"test-data.sql.tmpl": "test-data.sql",
+	}
+
+	for tmpl, filePath := range templateMap {
+		err := s.pg.executeTemplate(pc, srcTestResourcesPath+tmpl, srcTestResourcesPath+filePath)
 		if err != nil {
 			return err
 		}

@@ -5,9 +5,10 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 {{ end }}
-{{- if eq .AppType "REST API" }}
+{{- if .RestApiEnabled }}
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.test.web.servlet.client.RestTestClient;
+import org.springframework.http.MediaType;
 {{ end }}
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,7 +21,7 @@ import org.springframework.test.context.ActiveProfiles;
 {{- if eq .AppType "Web App" }}
 @AutoConfigureMockMvc
 {{ end }}
-{{- if eq .AppType "REST API" }}
+{{- if .RestApiEnabled }}
 @AutoConfigureRestTestClient
 {{ end }}
 public abstract class BaseIT {
@@ -30,9 +31,30 @@ public abstract class BaseIT {
     protected MockMvcTester mvc;
 {{ end }}
 
-{{- if eq .AppType "REST API" }}
+{{- if .RestApiEnabled }}
     @Autowired
     protected RestTestClient restTestClient;
+
+    protected String getAuthToken(String email, String password) {
+        record LoginResponse(String accessToken, String name, String email, String role) {}
+
+        LoginResponse response = restTestClient
+                            .post()
+                            .uri("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body("""
+                                    {
+                                        "email":"%s",
+                                        "password":"%s"
+                                    }
+                                    """.formatted(email, password))
+                            .exchange()
+                            .expectStatus()
+                            .isOk()
+                            .returnResult(LoginResponse.class)
+                            .getResponseBody();
+        return response.accessToken();
+    }
 {{ end }}
 
 }

@@ -34,6 +34,15 @@ type ProjectConfig struct {
 	ThymeleafSupport      bool
 	HTMXSupport           bool
 	EmailSupport          bool
+	RabbitMQSupport       bool
+	RedisCachingSupport   bool
+	OpenTelemetrySupport  bool
+	K8sSupport            bool
+}
+
+// RestApiEnabled reports whether REST API-specific project features should be generated.
+func (pc ProjectConfig) RestApiEnabled() bool {
+	return pc.AppType == RestApi || pc.AppType == SpringBootAngularFullStack
 }
 
 var defaultProjectConfig = ProjectConfig{
@@ -51,6 +60,10 @@ var defaultProjectConfig = ProjectConfig{
 	ThymeleafSupport:      false,
 	HTMXSupport:           false,
 	EmailSupport:          false,
+	RabbitMQSupport:       false,
+	RedisCachingSupport:   false,
+	OpenTelemetrySupport:  false,
+	K8sSupport:            false,
 }
 
 func GenerateProjectFromConfigFile(configFile string) error {
@@ -179,12 +192,18 @@ func (pg projectGenerator) generate(pc ProjectConfig) error {
 		NewSecurityConfig(pg),
 		NewSpringCloudAwsConfig(pg),
 		NewEmailConfig(pg),
+		NewRabbitMQConfig(pg),
+		NewRedisCachingConfig(pg),
 		NewDockerComposeConfig(pg),
+		NewOpenTelemetryConfig(pg),
+		NewK8sConfig(pg),
 		NewGhActionsConfig(pg),
 		NewReadMeConfig(pg),
 		NewSdkmanConfig(pg),
 		NewTaskfileConfig(pg),
 		NewRenovateConfig(pg),
+		NewAngularConfig(pg),
+		NewAIConfig(pg),
 	}
 
 	for _, gen := range generators {
