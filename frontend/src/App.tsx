@@ -4,17 +4,21 @@ import { AppGeneratorService } from '../bindings/github.com/sivaprasadreddy/sbge
 const steps = ['Welcome', 'Project', 'Frontend', 'Database', 'Security', 'Features', 'Review', 'Complete']
 
 type BuildTool = 'maven' | 'gradle-groovy'
-type Frontend = 'none' | 'thymeleaf'
+type Frontend = 'none' | 'thymeleaf' | 'angular'
 type CssFramework = 'tailwind'
 type DatabaseEngine = 'postgresql' | 'mysql' | 'mariadb'
 type MigrationTool = 'flyway' | 'liquibase'
-type PersistenceFramework = 'spring-data-jpa' | 'spring-jdbc-client'
+type PersistenceFramework = 'spring-data-jpa' | 'spring-jdbc-client' | 'jooq'
 type SecurityMode = 'http-session' | 'jwt-security'
-type Feature = 'email' | 'spring-cloud-aws'
+type Feature = 'email' | 'spring-cloud-aws' | 'rabbitmq' | 'redis-caching' | 'opentelemetry' | 'kubernetes'
 
 const featureOptions: ReadonlyArray<readonly [Feature, string, string]> = [
   ['spring-cloud-aws', 'Spring Cloud AWS', 'Integrate with AWS services using Spring'],
   ['email', 'Email', 'Send transactional and application emails'],
+  ['rabbitmq', 'RabbitMQ', 'Add messaging support with Spring AMQP'],
+  ['redis-caching', 'Redis Caching', 'Add caching support backed by Redis'],
+  ['opentelemetry', 'OpenTelemetry', 'Add distributed tracing and observability'],
+  ['kubernetes', 'Kubernetes Manifests', 'Generate deployment manifests for Kubernetes'],
 ]
 
 const labels: Record<string, string> = {
@@ -22,6 +26,7 @@ const labels: Record<string, string> = {
   'gradle-groovy': 'Gradle – Groovy',
   none: 'None',
   thymeleaf: 'Thymeleaf',
+  angular: 'Angular',
   tailwind: 'Tailwind CSS',
   postgresql: 'PostgreSQL',
   mysql: 'MySQL',
@@ -30,10 +35,15 @@ const labels: Record<string, string> = {
   liquibase: 'Liquibase',
   'spring-data-jpa': 'Spring Data JPA',
   'spring-jdbc-client': 'Spring JdbcClient',
+  jooq: 'jOOQ',
   'http-session': 'HTTP Session based Security',
   'jwt-security': 'JWT Security',
   email: 'Email',
   'spring-cloud-aws': 'Spring Cloud AWS',
+  rabbitmq: 'RabbitMQ',
+  'redis-caching': 'Redis Caching',
+  opentelemetry: 'OpenTelemetry',
+  kubernetes: 'Kubernetes Manifests',
 }
 
 type ProjectMetadata = {
@@ -84,6 +94,12 @@ const initialSecurityConfiguration: SecurityConfiguration = {
 
 const defaultSecurityMode = (frontend: Frontend): SecurityMode =>
   frontend === 'thymeleaf' ? 'http-session' : 'jwt-security'
+
+const securityModeDescriptions: Record<Frontend, { label: string; description: string }> = {
+  thymeleaf: { label: 'HTTP Session based Security', description: 'Session-backed authentication for server-rendered pages' },
+  none: { label: 'JWT Security', description: 'Token-based security for API access' },
+  angular: { label: 'JWT Security', description: 'Token-based security for the Angular single-page application' },
+}
 
 function App() {
   const [activeStep, setActiveStep] = useState(0)
@@ -199,11 +215,14 @@ function App() {
           <span>Spring Boot Generator</span>
         </div>
         <ol className="steps">
-          {steps.map((step, index) => (
-            <li className={index === activeStep ? 'active' : index < activeStep ? 'complete' : ''} key={step} aria-current={index === activeStep ? 'step' : undefined}>
-              <span className="step-number">{index < activeStep ? '✓' : index + 1}</span><span>{step}</span>
-            </li>
-          ))}
+          {steps.map((step, index) => {
+            const isComplete = index < activeStep || (index === activeStep && index === steps.length - 1 && Boolean(downloadedFilePath))
+            return (
+              <li className={isComplete ? 'complete' : index === activeStep ? 'active' : ''} key={step} aria-current={index === activeStep && !isComplete ? 'step' : undefined}>
+                <span className="step-number">{isComplete ? '✓' : index + 1}</span><span>{step}</span>
+              </li>
+            )
+          })}
         </ol>
         <div className="sidebar-tools" aria-hidden="true"><span>△</span><span className="heart">♥</span><span>◔</span></div>
       </aside>
@@ -281,6 +300,7 @@ function App() {
                 {([
                   ['none', 'None', 'Backend REST API only'],
                   ['thymeleaf', 'Thymeleaf', 'Server-rendered web application'],
+                  ['angular', 'Angular', 'Spring Boot backend with an Angular single-page application'],
                 ] as const).map(([value, label, description]) => (
                   <label className={frontend.frontend === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="frontend" value={value} checked={frontend.frontend === value} onChange={() => {
@@ -367,6 +387,7 @@ function App() {
                 {([
                   ['spring-data-jpa', 'Spring Data JPA', 'Repository-based persistence with JPA'],
                   ['spring-jdbc-client', 'Spring JdbcClient', 'Fluent JDBC-based database access'],
+                  ['jooq', 'jOOQ', 'Type-safe SQL query building with jOOQ'],
                 ] as const).map(([value, label, description]) => (
                   <label className={database.persistenceFramework === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="persistenceFramework" value={value} checked={database.persistenceFramework === value} onChange={() => updateDatabase('persistenceFramework', value)} />
@@ -412,14 +433,14 @@ function App() {
                 {savedFrontend.frontend === 'thymeleaf' && (
                   <label className={security.mode === 'http-session' ? 'selected' : ''}>
                     <input type="radio" name="securityMode" value="http-session" checked={security.mode === 'http-session'} onChange={() => setSecurity((current) => ({ ...current, mode: 'http-session' }))} />
-                    <span><strong>HTTP Session based Security</strong><small>Session-backed authentication for server-rendered pages</small></span>
+                    <span><strong>{securityModeDescriptions.thymeleaf.label}</strong><small>{securityModeDescriptions.thymeleaf.description}</small></span>
                   </label>
                 )}
 
-                {savedFrontend.frontend === 'none' && (
+                {savedFrontend.frontend !== 'thymeleaf' && (
                   <label className={security.mode === 'jwt-security' ? 'selected' : ''}>
                     <input type="radio" name="securityMode" value="jwt-security" checked={security.mode === 'jwt-security'} onChange={() => setSecurity({ mode: 'jwt-security' })} />
-                    <span><strong>JWT Security</strong><small>Token-based security for API access</small></span>
+                    <span><strong>{securityModeDescriptions[savedFrontend.frontend].label}</strong><small>{securityModeDescriptions[savedFrontend.frontend].description}</small></span>
                   </label>
                 )}
               </div>

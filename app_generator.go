@@ -132,8 +132,11 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 	}
 
 	appType := springboot.RestApi
-	if configuration.Frontend.Type == "thymeleaf" {
+	switch configuration.Frontend.Type {
+	case "thymeleaf":
 		appType = springboot.WebApp
+	case "angular":
+		appType = springboot.SpringBootAngularFullStack
 	}
 	databaseTypes := map[string]springboot.DatabaseType{
 		"postgresql": springboot.PostgreSQL,
@@ -147,6 +150,7 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 	persistenceTypes := map[string]springboot.PersistenceType{
 		"spring-data-jpa":    springboot.SpringDataJPA,
 		"spring-jdbc-client": springboot.SpringJdbcClient,
+		"jooq":               springboot.SpringJOOQ,
 	}
 
 	return springboot.ProjectConfig{
@@ -162,6 +166,10 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		PersistenceType:       persistenceTypes[configuration.Database.PersistenceFramework],
 		SpringCloudAWSSupport: contains(configuration.Features, "spring-cloud-aws"),
 		EmailSupport:          contains(configuration.Features, "email"),
+		RabbitMQSupport:       contains(configuration.Features, "rabbitmq"),
+		RedisCachingSupport:   contains(configuration.Features, "redis-caching"),
+		OpenTelemetrySupport:  contains(configuration.Features, "opentelemetry"),
+		K8sSupport:            contains(configuration.Features, "kubernetes"),
 		ThymeleafSupport:      configuration.Frontend.Type == "thymeleaf",
 		HTMXSupport:           configuration.Frontend.HTMX,
 	}
@@ -226,7 +234,7 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if !contains([]string{"maven", "gradle-groovy"}, configuration.Project.BuildTool) {
 		return fmt.Errorf("unsupported build tool %q", configuration.Project.BuildTool)
 	}
-	if !contains([]string{"none", "thymeleaf"}, configuration.Frontend.Type) {
+	if !contains([]string{"none", "thymeleaf", "angular"}, configuration.Frontend.Type) {
 		return fmt.Errorf("unsupported frontend type %q", configuration.Frontend.Type)
 	}
 	if configuration.Frontend.CSSFramework != nil && *configuration.Frontend.CSSFramework != "tailwind" {
@@ -244,7 +252,7 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if !contains([]string{"flyway", "liquibase"}, configuration.Database.MigrationTool) {
 		return fmt.Errorf("unsupported migration tool %q", configuration.Database.MigrationTool)
 	}
-	if !contains([]string{"spring-data-jpa", "spring-jdbc-client"}, configuration.Database.PersistenceFramework) {
+	if !contains([]string{"spring-data-jpa", "spring-jdbc-client", "jooq"}, configuration.Database.PersistenceFramework) {
 		return fmt.Errorf("unsupported persistence framework %q", configuration.Database.PersistenceFramework)
 	}
 	if !contains([]string{"none", "http-session", "jwt-security"}, configuration.Security.Mode) {
@@ -253,11 +261,11 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if configuration.Security.Mode == "http-session" && configuration.Frontend.Type != "thymeleaf" {
 		return fmt.Errorf("HTTP-session security requires the Thymeleaf frontend")
 	}
-	if configuration.Security.Mode == "jwt-security" && configuration.Frontend.Type != "none" {
+	if configuration.Security.Mode == "jwt-security" && configuration.Frontend.Type == "thymeleaf" {
 		return fmt.Errorf("JWT-security with Thymeleaf frontend is invalid")
 	}
 	for _, feature := range configuration.Features {
-		if !contains([]string{"email", "spring-cloud-aws"}, feature) {
+		if !contains([]string{"email", "spring-cloud-aws", "rabbitmq", "redis-caching", "opentelemetry", "kubernetes"}, feature) {
 			return fmt.Errorf("unsupported feature %q", feature)
 		}
 	}
