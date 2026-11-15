@@ -1,5 +1,15 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, MouseEvent, useState } from 'react'
+import { Browser } from '@wailsio/runtime'
 import { AppGeneratorService } from '../bindings/github.com/sivaprasadreddy/sbgen'
+
+const authorUrl = 'https://sivalabs.in'
+const repositoryUrl = 'https://github.com/sivaprasadreddy/sbgen'
+
+// Open links in the system browser instead of navigating the app's webview.
+const openExternal = (event: MouseEvent<HTMLAnchorElement>) => {
+  event.preventDefault()
+  void Browser.OpenURL(event.currentTarget.href)
+}
 
 const steps = ['Welcome', 'Project', 'Frontend', 'Database', 'Features', 'Review', 'Complete']
 
@@ -218,7 +228,7 @@ function App() {
     <main className="generator-shell">
       <aside className="sidebar" aria-label="Project generation steps">
         <div className="logo-wrap">
-          <img src="/wails.png" alt="Wails" className="logo" />
+          <img src="/sbgen.png" alt="Spring Boot Generator" className="logo" />
           <span>Spring Boot Generator</span>
         </div>
         <ol className="steps">
@@ -231,7 +241,10 @@ function App() {
             )
           })}
         </ol>
-        <div className="sidebar-tools" aria-hidden="true"><span>△</span><span className="heart">♥</span><span>◔</span></div>
+        <footer className="sidebar-footer">
+          <p>Author: <a href={authorUrl} onClick={openExternal}>SivaLabs</a></p>
+          <p><a href={repositoryUrl} onClick={openExternal}>GitHub repository ↗</a></p>
+        </footer>
       </aside>
 
       <section className="content-panel">

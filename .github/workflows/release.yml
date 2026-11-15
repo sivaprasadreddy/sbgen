@@ -43,7 +43,7 @@ jobs:
       - name: Archive app bundle
         run: |
           ditto -c -k --sequesterRsrc --keepParent \
-            bin/sbgen.app \
+            bin/SBGen.app \
             "sbgen-${GITHUB_REF_NAME}-macos.zip"
 
       - name: Publish GitHub Release

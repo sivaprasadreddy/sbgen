@@ -6,7 +6,7 @@ version: '3'
 # This information is used to generate the build assets.
 info:
   companyName: "SivaLabs" # The name of the company
-  productName: "Spring Boot App Generator" # The name of the application
+  productName: "SBGen" # The name of the application
   productIdentifier: "dev.sivalabs.sbgen" # The unique product identifier
   description: "A desktop application to generate Spring Boot applications" # The application description
   copyright: "(c) 2027, SivaLabs" # Copyright text

@@ -16,6 +16,11 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// appIconPath is the application icon inside the embedded frontend assets.
+// Setting it at runtime makes the macOS Dock show it even when LaunchServices
+// has a stale icon cached for the bundle.
+const appIconPath = "frontend/dist/sbgen.png"
+
 // main function serves as the application's entry point.
 func main() {
 
@@ -24,9 +29,15 @@ func main() {
 	// 'Assets' configures the asset server with the 'FS' variable pointing to the frontend files.
 	// 'Bind' is a list of Go struct instances. The frontend has access to the methods of these instances.
 	// 'Mac' options tailor the application when running an macOS.
+	appIcon, err := assets.ReadFile(appIconPath)
+	if err != nil {
+		log.Printf("load application icon: %v", err)
+	}
+
 	app := application.New(application.Options{
-		Name:        "Spring Boot App Generator",
+		Name:        "SBGen",
 		Description: "A Spring Boot Application Generator",
+		Icon:        appIcon,
 		Services: []application.Service{
 			application.NewService(&AppGeneratorService{}),
 		},
@@ -44,7 +55,7 @@ func main() {
 	// 'BackgroundColour' is the background colour of the window.
 	// 'URL' is the URL that will be loaded into the webview.
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title: "Spring Boot App Generator",
+		Title: "SBGen",
 		// Window sized to the golden ratio (1000 / 618 ≈ 1.618).
 		Width:  1200,
 		Height: 800,
@@ -53,12 +64,12 @@ func main() {
 			Backdrop:                application.MacBackdropTranslucent,
 			TitleBar:                application.MacTitleBarHiddenInset,
 		},
-		BackgroundColour: application.NewRGB(6, 7, 15),
+		BackgroundColour: application.NewRGB(246, 244, 250),
 		URL:              "/",
 	})
 
 	// Run the application. This blocks until the application has been exited.
-	err := app.Run()
+	err = app.Run()
 
 	// If an error occurred while running the application, log it and exit.
 	if err != nil {
