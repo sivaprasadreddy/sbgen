@@ -14,7 +14,8 @@ const openExternal = (event: MouseEvent<HTMLAnchorElement>) => {
 const steps = ['Welcome', 'Project', 'Frontend', 'Database', 'Features', 'Review', 'Complete']
 
 type BuildTool = 'maven' | 'gradle'
-type Frontend = 'none' | 'thymeleaf' | 'jte' | 'angular'
+type TaskRunner = 'mise' | 'taskfile'
+type Frontend = 'none' | 'thymeleaf' | 'jte' | 'angular' | 'react'
 type DatabaseEngine = 'postgresql' | 'mysql' | 'mariadb'
 type MigrationTool = 'flyway' | 'liquibase'
 type PersistenceFramework = 'spring-data-jpa' | 'spring-jdbc-client' | 'jooq'
@@ -49,10 +50,13 @@ const aiModelOptions: ReadonlyArray<readonly [AIModel, string, string]> = [
 const labels: Record<string, string> = {
   maven: 'Maven',
   gradle: 'Gradle',
+  mise: 'Mise',
+  taskfile: 'Taskfile (with SDKMAN)',
   none: 'None (REST API)',
   thymeleaf: 'Thymeleaf',
   jte: 'JTE',
   angular: 'Angular',
+  react: 'React',
   postgresql: 'PostgreSQL',
   mysql: 'MySQL',
   mariadb: 'MariaDB',
@@ -79,6 +83,7 @@ type ProjectMetadata = {
   artifactId: string
   packageName: string
   buildTool: BuildTool
+  taskRunner: TaskRunner
 }
 
 const initialMetadata: ProjectMetadata = {
@@ -88,6 +93,7 @@ const initialMetadata: ProjectMetadata = {
   artifactId: 'demo',
   packageName: 'dev.sivalabs.demo',
   buildTool: 'maven',
+  taskRunner: 'mise',
 }
 
 type FrontendConfiguration = {
@@ -263,7 +269,7 @@ function App() {
             <div className="form-heading">
               <p className="eyebrow">Step 2 of 7</p>
               <h1>Project Metadata</h1>
-              <p>Define the coordinates and build system for your new Spring Boot application.</p>
+              <p>Define the coordinates, build system, and task runner for your new Spring Boot application.</p>
             </div>
 
             <div className="field-grid">
@@ -309,6 +315,21 @@ function App() {
               </div>
             </fieldset>
 
+            <fieldset className="build-tool">
+              <legend>Task Runner</legend>
+              <div className="build-options">
+                {([
+                  ['mise', 'Mise', 'mise.toml installs the JDK and runs tasks'],
+                  ['taskfile', 'Taskfile', 'Taskfile.yml with .sdkmanrc for SDKMAN'],
+                ] as const).map(([value, label, description]) => (
+                  <label className={metadata.taskRunner === value ? 'selected' : ''} key={value}>
+                    <input type="radio" name="taskRunner" value={value} checked={metadata.taskRunner === value} onChange={() => updateMetadata('taskRunner', value)} />
+                    <span><strong>{label}</strong><small>{description}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
             <div className="form-actions">
               <button type="button" className="back-button" onClick={() => setActiveStep(0)}>Back</button>
               <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
@@ -332,6 +353,7 @@ function App() {
                   ['thymeleaf', 'Thymeleaf', 'Server-rendered web application using Thymeleaf'],
                   ['jte', 'JTE', 'Server-rendered web application using Java Template Engine'],
                   ['angular', 'Angular', 'Spring Boot backend with an Angular single-page application'],
+                  ['react', 'React', 'Spring Boot backend with a React (Vite) single-page application'],
                 ] as const).map(([value, label, description]) => (
                   <label className={frontend.frontend === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="frontend" value={value} checked={frontend.frontend === value} onChange={() => {
@@ -496,6 +518,7 @@ function App() {
                   <div><dt>Artifact ID</dt><dd>{savedMetadata.artifactId}</dd></div>
                   <div><dt>Package</dt><dd>{savedMetadata.packageName}</dd></div>
                   <div><dt>Build Tool</dt><dd>{labels[savedMetadata.buildTool]}</dd></div>
+                  <div><dt>Task Runner</dt><dd>{labels[savedMetadata.taskRunner]}</dd></div>
                 </dl>
               </section>
 

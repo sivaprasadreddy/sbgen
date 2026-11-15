@@ -3,7 +3,7 @@ module github.com/sivaprasadreddy/sbgen
 go 1.27.4
 
 require (
-	github.com/sivaprasadreddy/progen v1.0.6-0.20261115024427-87c8a153e004
+	github.com/sivaprasadreddy/progen v1.0.6
 	github.com/wailsapp/wails/v3 v3.1.0
 )
 
@@ -11,7 +11,7 @@ require (
 	charm.land/bubbles/v2 v2.2.1 // indirect
 	charm.land/bubbletea/v2 v2.1.1 // indirect
 	charm.land/huh/v2 v2.0.3 // indirect
-	charm.land/lipgloss/v2 v2.1.0 // indirect
+	charm.land/lipgloss/v2 v2.1.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect

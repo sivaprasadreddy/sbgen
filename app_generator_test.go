@@ -15,6 +15,7 @@ func validConfiguration() generatorConfiguration {
 	c.Project.ArtifactID = "demo"
 	c.Project.PackageName = "dev.sivalabs.demo"
 	c.Project.BuildTool = "maven"
+	c.Project.TaskRunner = "mise"
 	c.Frontend.Type = "none"
 	c.Database.Engine = "postgresql"
 	c.Database.MigrationTool = "flyway"
@@ -52,12 +53,40 @@ func TestToProjectConfigMapsJTEWithHTMXAndAIModels(t *testing.T) {
 	}
 }
 
+func TestToProjectConfigMapsReactWithTaskfile(t *testing.T) {
+	c := validConfiguration()
+	c.Project.TaskRunner = "taskfile"
+	c.Frontend.Type = "react"
+
+	if err := validateConfiguration(c); err != nil {
+		t.Fatalf("expected valid configuration, got %v", err)
+	}
+	pc := toProjectConfig(c)
+
+	if pc.Frontend != springboot.FrontendReact || !pc.ReactSupport() || !pc.SPASupport() || pc.HTMXSupport {
+		t.Errorf("unexpected frontend mapping: %+v", pc)
+	}
+	if pc.TaskRunner != springboot.TaskRunnerTaskfile || !pc.TaskfileSupport() || pc.MiseSupport() {
+		t.Errorf("expected Taskfile task runner, got %q", pc.TaskRunner)
+	}
+}
+
+func TestToProjectConfigMapsMiseTaskRunner(t *testing.T) {
+	pc := toProjectConfig(validConfiguration())
+	if pc.TaskRunner != springboot.TaskRunnerMise || !pc.MiseSupport() {
+		t.Errorf("expected Mise task runner, got %q", pc.TaskRunner)
+	}
+}
+
 func TestValidateConfigurationRejectsInvalidCombinations(t *testing.T) {
 	cases := map[string]func(*generatorConfiguration){
 		"missing app name":    func(c *generatorConfiguration) { c.Project.AppName = " " },
 		"path in app name":    func(c *generatorConfiguration) { c.Project.AppName = "../demo" },
 		"missing version":     func(c *generatorConfiguration) { c.Project.AppVersion = "" },
 		"unknown build tool":  func(c *generatorConfiguration) { c.Project.BuildTool = "gradle-groovy" },
+		"missing task runner": func(c *generatorConfiguration) { c.Project.TaskRunner = "" },
+		"unknown task runner": func(c *generatorConfiguration) { c.Project.TaskRunner = "make" },
+		"htmx with react":     func(c *generatorConfiguration) { c.Frontend.Type = "react"; c.Frontend.HTMX = true },
 		"htmx without views":  func(c *generatorConfiguration) { c.Frontend.HTMX = true },
 		"unknown ai provider": func(c *generatorConfiguration) { c.AIModels = []string{"gemini"} },
 		"unknown feature":     func(c *generatorConfiguration) { c.Features = []string{"htmx"} },

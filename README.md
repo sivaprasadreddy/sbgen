@@ -12,14 +12,14 @@ SBGen gives you a graphical alternative to answering prompts in the terminal.
 
 | Step     | Options                                                                                                 |
 |----------|---------------------------------------------------------------------------------------------------------|
-| Project  | Application name and version, Group ID, Artifact ID, base package, build tool (Maven or Gradle)          |
-| Frontend | None (REST API), Thymeleaf, JTE, or Angular; optional HTMX for Thymeleaf and JTE                          |
+| Project  | Application name and version, Group ID, Artifact ID, base package, build tool (Maven or Gradle), task runner (Mise or Taskfile with SDKMAN) |
+| Frontend | None (REST API), Thymeleaf, JTE, Angular, or React; optional HTMX for Thymeleaf and JTE                   |
 | Database | PostgreSQL, MySQL, or MariaDB; Spring Data JPA, Spring JdbcClient, or jOOQ; Flyway or Liquibase          |
 | Features | Spring Cloud AWS, Email, RabbitMQ, Redis Caching, OpenTelemetry, Kubernetes manifests                    |
 | AI       | Spring AI chat model providers: Ollama, OpenAI, Anthropic                                                |
 
 Security is configured automatically based on the frontend: session-based login for server-rendered
-frontends (Thymeleaf, JTE) and JWT for REST API and Angular applications.
+frontends (Thymeleaf, JTE) and JWT for REST API, Angular, and React applications.
 
 ## Install
 
@@ -40,7 +40,8 @@ frontends (Thymeleaf, JTE) and JWT for REST API and Angular applications.
 ## Usage
 
 1. Launch **SBGen** and click **Get started**.
-2. **Project** – enter the application name, version, Group ID and Artifact ID.
+2. **Project** – enter the application name, version, Group ID and Artifact ID, and pick the build tool
+   and task runner (Mise by default, or Taskfile with SDKMAN).
    The package name is filled in from the Group ID and Artifact ID until you change it.
 3. **Frontend** – pick a frontend, and HTMX if you chose Thymeleaf or JTE.
 4. **Database** – pick the database, persistence framework, and migration tool.

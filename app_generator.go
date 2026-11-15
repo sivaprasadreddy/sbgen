@@ -30,6 +30,7 @@ type generatorConfiguration struct {
 		ArtifactID  string `json:"artifactId"`
 		PackageName string `json:"packageName"`
 		BuildTool   string `json:"buildTool"`
+		TaskRunner  string `json:"taskRunner"`
 	} `json:"project"`
 	Frontend struct {
 		Type string `json:"type"`
@@ -135,6 +136,11 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		"thymeleaf": springboot.FrontendThymeleaf,
 		"jte":       springboot.FrontendJTE,
 		"angular":   springboot.FrontendAngular,
+		"react":     springboot.FrontendReact,
+	}
+	taskRunners := map[string]springboot.TaskRunner{
+		"mise":     springboot.TaskRunnerMise,
+		"taskfile": springboot.TaskRunnerTaskfile,
 	}
 	databaseTypes := map[string]springboot.DatabaseType{
 		"postgresql": springboot.PostgreSQL,
@@ -165,6 +171,7 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		AppVersion:            strings.TrimSpace(configuration.Project.AppVersion),
 		BasePackage:           strings.TrimSpace(configuration.Project.PackageName),
 		BuildTool:             buildTool,
+		TaskRunner:            taskRunners[configuration.Project.TaskRunner],
 		DbType:                databaseTypes[configuration.Database.Engine],
 		DbMigrationTool:       migrationTools[configuration.Database.MigrationTool],
 		PersistenceType:       persistenceTypes[configuration.Database.PersistenceFramework],
@@ -248,7 +255,10 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if !contains([]string{"maven", "gradle"}, configuration.Project.BuildTool) {
 		return fmt.Errorf("unsupported build tool %q", configuration.Project.BuildTool)
 	}
-	if !contains([]string{"none", "thymeleaf", "jte", "angular"}, configuration.Frontend.Type) {
+	if !contains([]string{"mise", "taskfile"}, configuration.Project.TaskRunner) {
+		return fmt.Errorf("unsupported task runner %q", configuration.Project.TaskRunner)
+	}
+	if !contains([]string{"none", "thymeleaf", "jte", "angular", "react"}, configuration.Frontend.Type) {
 		return fmt.Errorf("unsupported frontend type %q", configuration.Frontend.Type)
 	}
 	if configuration.Frontend.HTMX && !isServerRendered(configuration.Frontend.Type) {
