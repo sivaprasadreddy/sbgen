@@ -1,16 +1,25 @@
 import { FormEvent, useState } from 'react'
 import { AppGeneratorService } from '../bindings/github.com/sivaprasadreddy/sbgen'
 
-const steps = ['Welcome', 'Project', 'Frontend', 'Database', 'Security', 'Features', 'Review', 'Complete']
+const steps = ['Welcome', 'Project', 'Frontend', 'Database', 'Features', 'Review', 'Complete']
 
-type BuildTool = 'maven' | 'gradle-groovy'
-type Frontend = 'none' | 'thymeleaf' | 'angular'
-type CssFramework = 'tailwind'
+type BuildTool = 'maven' | 'gradle'
+type Frontend = 'none' | 'thymeleaf' | 'jte' | 'angular'
 type DatabaseEngine = 'postgresql' | 'mysql' | 'mariadb'
 type MigrationTool = 'flyway' | 'liquibase'
 type PersistenceFramework = 'spring-data-jpa' | 'spring-jdbc-client' | 'jooq'
-type SecurityMode = 'http-session' | 'jwt-security'
 type Feature = 'email' | 'spring-cloud-aws' | 'rabbitmq' | 'redis-caching' | 'opentelemetry' | 'kubernetes'
+type AIModel = 'ollama' | 'openai' | 'anthropic'
+
+const isServerRendered = (frontend: Frontend) => frontend === 'thymeleaf' || frontend === 'jte'
+
+const deriveBasePackage = (groupId: string, artifactId: string) => {
+  const group = groupId.trim()
+  const segment = artifactId.trim().replace(/-/g, '').toLowerCase()
+  if (!group) return segment
+  if (!segment) return group
+  return `${group}.${segment}`
+}
 
 const featureOptions: ReadonlyArray<readonly [Feature, string, string]> = [
   ['spring-cloud-aws', 'Spring Cloud AWS', 'Integrate with AWS services using Spring'],
@@ -21,13 +30,19 @@ const featureOptions: ReadonlyArray<readonly [Feature, string, string]> = [
   ['kubernetes', 'Kubernetes Manifests', 'Generate deployment manifests for Kubernetes'],
 ]
 
+const aiModelOptions: ReadonlyArray<readonly [AIModel, string, string]> = [
+  ['ollama', 'Ollama', 'Run open models locally with Ollama'],
+  ['openai', 'OpenAI', 'Use OpenAI chat models'],
+  ['anthropic', 'Anthropic', 'Use Anthropic Claude chat models'],
+]
+
 const labels: Record<string, string> = {
   maven: 'Maven',
-  'gradle-groovy': 'Gradle – Groovy',
-  none: 'None',
+  gradle: 'Gradle',
+  none: 'None (REST API)',
   thymeleaf: 'Thymeleaf',
+  jte: 'JTE',
   angular: 'Angular',
-  tailwind: 'Tailwind CSS',
   postgresql: 'PostgreSQL',
   mysql: 'MySQL',
   mariadb: 'MariaDB',
@@ -36,17 +51,20 @@ const labels: Record<string, string> = {
   'spring-data-jpa': 'Spring Data JPA',
   'spring-jdbc-client': 'Spring JdbcClient',
   jooq: 'jOOQ',
-  'http-session': 'HTTP Session based Security',
-  'jwt-security': 'JWT Security',
   email: 'Email',
   'spring-cloud-aws': 'Spring Cloud AWS',
   rabbitmq: 'RabbitMQ',
   'redis-caching': 'Redis Caching',
   opentelemetry: 'OpenTelemetry',
   kubernetes: 'Kubernetes Manifests',
+  ollama: 'Ollama',
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
 }
 
 type ProjectMetadata = {
+  appName: string
+  appVersion: string
   groupId: string
   artifactId: string
   packageName: string
@@ -54,6 +72,8 @@ type ProjectMetadata = {
 }
 
 const initialMetadata: ProjectMetadata = {
+  appName: 'demo',
+  appVersion: '1.0.0',
   groupId: 'dev.sivalabs',
   artifactId: 'demo',
   packageName: 'dev.sivalabs.demo',
@@ -62,13 +82,11 @@ const initialMetadata: ProjectMetadata = {
 
 type FrontendConfiguration = {
   frontend: Frontend
-  cssFramework: CssFramework
   htmxSupport: boolean
 }
 
 const initialFrontendConfiguration: FrontendConfiguration = {
   frontend: 'none',
-  cssFramework: 'tailwind',
   htmxSupport: false,
 }
 
@@ -84,23 +102,6 @@ const initialDatabaseConfiguration: DatabaseConfiguration = {
   persistenceFramework: 'spring-data-jpa',
 }
 
-type SecurityConfiguration = {
-  mode: SecurityMode
-}
-
-const initialSecurityConfiguration: SecurityConfiguration = {
-  mode: 'jwt-security',
-}
-
-const defaultSecurityMode = (frontend: Frontend): SecurityMode =>
-  frontend === 'thymeleaf' ? 'http-session' : 'jwt-security'
-
-const securityModeDescriptions: Record<Frontend, { label: string; description: string }> = {
-  thymeleaf: { label: 'HTTP Session based Security', description: 'Session-backed authentication for server-rendered pages' },
-  none: { label: 'JWT Security', description: 'Token-based security for API access' },
-  angular: { label: 'JWT Security', description: 'Token-based security for the Angular single-page application' },
-}
-
 function App() {
   const [activeStep, setActiveStep] = useState(0)
   const [metadata, setMetadata] = useState<ProjectMetadata>(initialMetadata)
@@ -109,16 +110,23 @@ function App() {
   const [savedFrontend, setSavedFrontend] = useState<FrontendConfiguration | null>(null)
   const [database, setDatabase] = useState<DatabaseConfiguration>(initialDatabaseConfiguration)
   const [savedDatabase, setSavedDatabase] = useState<DatabaseConfiguration | null>(null)
-  const [security, setSecurity] = useState<SecurityConfiguration>(initialSecurityConfiguration)
-  const [savedSecurity, setSavedSecurity] = useState<SecurityConfiguration | null>(null)
   const [features, setFeatures] = useState<Feature[]>([])
   const [savedFeatures, setSavedFeatures] = useState<Feature[] | null>(null)
+  const [aiModels, setAIModels] = useState<AIModel[]>([])
+  const [savedAIModels, setSavedAIModels] = useState<AIModel[] | null>(null)
   const [downloadedFilePath, setDownloadedFilePath] = useState('')
   const [generationError, setGenerationError] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
 
   const updateMetadata = <K extends keyof ProjectMetadata>(field: K, value: ProjectMetadata[K]) => {
-    setMetadata((current) => ({ ...current, [field]: value }))
+    setMetadata((current) => {
+      const next = { ...current, [field]: value }
+      // Keep the package name in sync with group/artifact IDs until the user customizes it.
+      if ((field === 'groupId' || field === 'artifactId') && current.packageName === deriveBasePackage(current.groupId, current.artifactId)) {
+        next.packageName = deriveBasePackage(next.groupId, next.artifactId)
+      }
+      return next
+    })
   }
 
   const handleProjectSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -130,7 +138,6 @@ function App() {
   const handleFrontendSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavedFrontend({ ...frontend })
-    setSecurity({ mode: defaultSecurityMode(frontend.frontend) })
     setActiveStep(3)
   }
 
@@ -144,37 +151,37 @@ function App() {
     setActiveStep(4)
   }
 
-  const handleSecuritySubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setSavedSecurity({ ...security })
-    setActiveStep(5)
-  }
-
   const toggleFeature = (feature: Feature) => {
     setFeatures((current) => current.includes(feature)
       ? current.filter((selected) => selected !== feature)
       : [...current, feature])
   }
 
+  const toggleAIModel = (model: AIModel) => {
+    setAIModels((current) => current.includes(model)
+      ? current.filter((selected) => selected !== model)
+      : [...current, model])
+  }
+
   const handleFeaturesSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavedFeatures([...features])
-    setActiveStep(6)
+    setSavedAIModels(aiModelOptions.map(([value]) => value).filter((model) => aiModels.includes(model)))
+    setActiveStep(5)
   }
 
   const handleGenerate = async () => {
-    if (!savedMetadata || !savedFrontend || !savedDatabase || !savedSecurity || !savedFeatures) return
+    if (!savedMetadata || !savedFrontend || !savedDatabase || !savedFeatures || !savedAIModels) return
 
     const configuration = {
       project: savedMetadata,
       frontend: {
         type: savedFrontend.frontend,
-        cssFramework: savedFrontend.frontend === 'none' ? null : savedFrontend.cssFramework,
-        htmxSupport: savedFrontend.frontend === 'thymeleaf' && savedFrontend.htmxSupport,
+        htmxSupport: isServerRendered(savedFrontend.frontend) && savedFrontend.htmxSupport,
       },
       database: savedDatabase,
-      security: savedSecurity,
       features: savedFeatures,
+      aiModels: savedAIModels,
     }
 
     setIsGenerating(true)
@@ -182,7 +189,7 @@ function App() {
     try {
       const filePath = await AppGeneratorService.GenerateProject(JSON.stringify(configuration))
       setDownloadedFilePath(filePath)
-      setActiveStep(7)
+      setActiveStep(6)
     } catch (error) {
       setGenerationError(error instanceof Error ? error.message : String(error))
     } finally {
@@ -197,10 +204,10 @@ function App() {
     setSavedFrontend(null)
     setDatabase(initialDatabaseConfiguration)
     setSavedDatabase(null)
-    setSecurity(initialSecurityConfiguration)
-    setSavedSecurity(null)
     setFeatures([])
     setSavedFeatures(null)
+    setAIModels([])
+    setSavedAIModels(null)
     setDownloadedFilePath('')
     setGenerationError('')
     setIsGenerating(false)
@@ -241,12 +248,22 @@ function App() {
         {activeStep === 1 && (
           <form className="project-form" onSubmit={handleProjectSubmit}>
             <div className="form-heading">
-              <p className="eyebrow">Step 2 of 8</p>
+              <p className="eyebrow">Step 2 of 7</p>
               <h1>Project Metadata</h1>
               <p>Define the coordinates and build system for your new Spring Boot application.</p>
             </div>
 
             <div className="field-grid">
+              <label className="field">
+                <span>Application Name</span>
+                <input required value={metadata.appName} onChange={(event) => updateMetadata('appName', event.target.value)} placeholder="boot-demo" autoComplete="off" />
+                <small>The generated project directory name.</small>
+              </label>
+              <label className="field">
+                <span>Application Version</span>
+                <input required value={metadata.appVersion} onChange={(event) => updateMetadata('appVersion', event.target.value)} placeholder="1.0.0" autoComplete="off" />
+                <small>The initial version of your application.</small>
+              </label>
               <label className="field">
                 <span>Group ID</span>
                 <input required value={metadata.groupId} onChange={(event) => updateMetadata('groupId', event.target.value)} placeholder="com.example" autoComplete="off" />
@@ -255,7 +272,7 @@ function App() {
               <label className="field">
                 <span>Artifact ID</span>
                 <input required value={metadata.artifactId} onChange={(event) => updateMetadata('artifactId', event.target.value)} placeholder="my-application" autoComplete="off" />
-                <small>The name of the generated project.</small>
+                <small>The Maven/Gradle artifact name.</small>
               </label>
               <label className="field field-wide">
                 <span>Package Name</span>
@@ -269,7 +286,7 @@ function App() {
               <div className="build-options">
                 {([
                   ['maven', 'Maven', 'pom.xml'],
-                  ['gradle-groovy', 'Gradle – Groovy', 'build.gradle'],
+                  ['gradle', 'Gradle', 'build.gradle'],
                 ] as const).map(([value, label, file]) => (
                   <label className={metadata.buildTool === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="buildTool" value={value} checked={metadata.buildTool === value} onChange={() => updateMetadata('buildTool', value)} />
@@ -289,9 +306,9 @@ function App() {
         {activeStep === 2 && savedMetadata && (
           <form className="project-form frontend-form" onSubmit={handleFrontendSubmit}>
             <div className="form-heading">
-              <p className="eyebrow">Step 3 of 8</p>
+              <p className="eyebrow">Step 3 of 7</p>
               <h1>Frontend</h1>
-              <p>Choose how the user interface for <strong>{savedMetadata.artifactId}</strong> should be built.</p>
+              <p>Choose how the user interface for <strong>{savedMetadata.appName}</strong> should be built.</p>
             </div>
 
             <fieldset className="build-tool first-option-group">
@@ -299,7 +316,8 @@ function App() {
               <div className="build-options">
                 {([
                   ['none', 'None', 'Backend REST API only'],
-                  ['thymeleaf', 'Thymeleaf', 'Server-rendered web application'],
+                  ['thymeleaf', 'Thymeleaf', 'Server-rendered web application using Thymeleaf'],
+                  ['jte', 'JTE', 'Server-rendered web application using Java Template Engine'],
                   ['angular', 'Angular', 'Spring Boot backend with an Angular single-page application'],
                 ] as const).map(([value, label, description]) => (
                   <label className={frontend.frontend === value ? 'selected' : ''} key={value}>
@@ -307,9 +325,8 @@ function App() {
                       setFrontend((current) => ({
                         ...current,
                         frontend: value,
-                        htmxSupport: value === 'thymeleaf' && current.htmxSupport,
+                        htmxSupport: isServerRendered(value) && current.htmxSupport,
                       }))
-                      setSecurity({ mode: defaultSecurityMode(value) })
                     }} />
                     <span><strong>{label}</strong><small>{description}</small></span>
                   </label>
@@ -317,23 +334,7 @@ function App() {
               </div>
             </fieldset>
 
-            {frontend.frontend !== 'none' && (
-              <fieldset className="build-tool">
-                <legend>CSS Framework</legend>
-                <div className="build-options database-options">
-                  {([
-                    ['tailwind', 'Tailwind CSS', 'Utility-first CSS framework'],
-                  ] as const).map(([value, label, description]) => (
-                    <label className={frontend.cssFramework === value ? 'selected' : ''} key={value}>
-                      <input type="radio" name="cssFramework" value={value} checked={frontend.cssFramework === value} onChange={() => setFrontend((current) => ({ ...current, cssFramework: value }))} />
-                      <span><strong>{label}</strong><small>{description}</small></span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-
-            {frontend.frontend === 'thymeleaf' && (
+            {isServerRendered(frontend.frontend) && (
               <fieldset className="build-tool">
                 <legend>Additional Support</legend>
                 <div className="build-options database-options">
@@ -344,7 +345,7 @@ function App() {
                       checked={frontend.htmxSupport}
                       onChange={(event) => setFrontend((current) => ({ ...current, htmxSupport: event.target.checked }))}
                     />
-                    <span><strong>HTMX</strong><small>Add HTMX and its Spring Boot Thymeleaf integration</small></span>
+                    <span><strong>HTMX</strong><small>Add HTMX for dynamic server-rendered pages</small></span>
                   </label>
                 </div>
               </fieldset>
@@ -360,9 +361,9 @@ function App() {
         {activeStep === 3 && savedMetadata && savedFrontend && (
           <form className="project-form database-form" onSubmit={handleDatabaseSubmit}>
             <div className="form-heading">
-              <p className="eyebrow">Step 4 of 8</p>
+              <p className="eyebrow">Step 4 of 7</p>
               <h1>Database</h1>
-              <p>Choose the database, persistence framework, and schema migration tool for <strong>{savedMetadata.artifactId}</strong>.</p>
+              <p>Choose the database, persistence framework, and schema migration tool for <strong>{savedMetadata.appName}</strong>.</p>
             </div>
 
             <fieldset className="build-tool first-option-group">
@@ -419,44 +420,10 @@ function App() {
           </form>
         )}
 
-        {activeStep === 4 && savedDatabase && savedFrontend && (
-          <form className="project-form security-form" onSubmit={handleSecuritySubmit}>
-            <div className="form-heading">
-              <p className="eyebrow">Step 5 of 8</p>
-              <h1>Security</h1>
-              <p>Choose the security model that fits your selected frontend.</p>
-            </div>
-
-            <fieldset className="build-tool first-option-group">
-              <legend>Security</legend>
-              <div className="build-options security-options">
-                {savedFrontend.frontend === 'thymeleaf' && (
-                  <label className={security.mode === 'http-session' ? 'selected' : ''}>
-                    <input type="radio" name="securityMode" value="http-session" checked={security.mode === 'http-session'} onChange={() => setSecurity((current) => ({ ...current, mode: 'http-session' }))} />
-                    <span><strong>{securityModeDescriptions.thymeleaf.label}</strong><small>{securityModeDescriptions.thymeleaf.description}</small></span>
-                  </label>
-                )}
-
-                {savedFrontend.frontend !== 'thymeleaf' && (
-                  <label className={security.mode === 'jwt-security' ? 'selected' : ''}>
-                    <input type="radio" name="securityMode" value="jwt-security" checked={security.mode === 'jwt-security'} onChange={() => setSecurity({ mode: 'jwt-security' })} />
-                    <span><strong>{securityModeDescriptions[savedFrontend.frontend].label}</strong><small>{securityModeDescriptions[savedFrontend.frontend].description}</small></span>
-                  </label>
-                )}
-              </div>
-            </fieldset>
-
-            <div className="form-actions">
-              <button type="button" className="back-button" onClick={() => setActiveStep(3)}>Back</button>
-              <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
-            </div>
-          </form>
-        )}
-
-        {activeStep === 5 && savedSecurity && (
+        {activeStep === 4 && savedDatabase && (
           <form className="project-form features-form" onSubmit={handleFeaturesSubmit}>
             <div className="form-heading">
-              <p className="eyebrow">Step 6 of 8</p>
+              <p className="eyebrow">Step 5 of 7</p>
               <h1>Features</h1>
               <p>Select any additional capabilities to include in your generated application.</p>
             </div>
@@ -476,17 +443,32 @@ function App() {
               </div>
             </fieldset>
 
+            <fieldset className="feature-selector">
+              <legend>Spring AI Models (optional)</legend>
+              <div className="feature-options">
+                {aiModelOptions.map(([value, label, description]) => {
+                  const selected = aiModels.includes(value)
+                  return (
+                    <label className={selected ? 'selected' : ''} key={value}>
+                      <input type="checkbox" value={value} checked={selected} onChange={() => toggleAIModel(value)} />
+                      <span><strong>{label}</strong><small>{description}</small></span>
+                    </label>
+                  )
+                })}
+              </div>
+            </fieldset>
+
             <div className="form-actions">
-              <button type="button" className="back-button" onClick={() => setActiveStep(4)}>Back</button>
+              <button type="button" className="back-button" onClick={() => setActiveStep(3)}>Back</button>
               <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
             </div>
           </form>
         )}
 
-        {activeStep === 6 && savedMetadata && savedFrontend && savedDatabase && savedSecurity && savedFeatures && (
+        {activeStep === 5 && savedMetadata && savedFrontend && savedDatabase && savedFeatures && savedAIModels && (
           <div className="project-form review-form">
             <div className="form-heading">
-              <p className="eyebrow">Step 7 of 8</p>
+              <p className="eyebrow">Step 6 of 7</p>
               <h1>Review</h1>
               <p>Review your selections before downloading the project configuration.</p>
             </div>
@@ -495,6 +477,8 @@ function App() {
               <section className="review-section">
                 <h2>Project</h2>
                 <dl>
+                  <div><dt>Name</dt><dd>{savedMetadata.appName}</dd></div>
+                  <div><dt>Version</dt><dd>{savedMetadata.appVersion}</dd></div>
                   <div><dt>Group ID</dt><dd>{savedMetadata.groupId}</dd></div>
                   <div><dt>Artifact ID</dt><dd>{savedMetadata.artifactId}</dd></div>
                   <div><dt>Package</dt><dd>{savedMetadata.packageName}</dd></div>
@@ -506,8 +490,7 @@ function App() {
                 <h2>Frontend</h2>
                 <dl>
                   <div><dt>Frontend</dt><dd>{labels[savedFrontend.frontend]}</dd></div>
-                  <div><dt>CSS Framework</dt><dd>{savedFrontend.frontend === 'none' ? 'Not applicable' : labels[savedFrontend.cssFramework]}</dd></div>
-                  <div><dt>HTMX Support</dt><dd>{savedFrontend.frontend === 'thymeleaf' && savedFrontend.htmxSupport ? 'Enabled' : 'Disabled'}</dd></div>
+                  <div><dt>HTMX Support</dt><dd>{isServerRendered(savedFrontend.frontend) && savedFrontend.htmxSupport ? 'Enabled' : 'Disabled'}</dd></div>
                 </dl>
               </section>
 
@@ -520,13 +503,6 @@ function App() {
                 </dl>
               </section>
 
-              <section className="review-section">
-                <h2>Security</h2>
-                <dl>
-                  <div><dt>Security</dt><dd>{labels[savedSecurity.mode]}</dd></div>
-                </dl>
-              </section>
-
               <section className="review-section review-features">
                 <h2>Features</h2>
                 <div className="review-tags">
@@ -535,22 +511,31 @@ function App() {
                     : savedFeatures.map((feature) => <span key={feature}>{labels[feature]}</span>)}
                 </div>
               </section>
+
+              <section className="review-section review-features">
+                <h2>Spring AI Models</h2>
+                <div className="review-tags">
+                  {savedAIModels.length === 0
+                    ? <span className="empty-tag">None</span>
+                    : savedAIModels.map((model) => <span key={model}>{labels[model]}</span>)}
+                </div>
+              </section>
             </div>
 
             {generationError && <p className="generation-error" role="alert">{generationError}</p>}
             <div className="form-actions">
-              <button type="button" className="back-button" onClick={() => setActiveStep(5)} disabled={isGenerating}>Back</button>
+              <button type="button" className="back-button" onClick={() => setActiveStep(4)} disabled={isGenerating}>Back</button>
               <button type="button" className="next-button generate-button" onClick={handleGenerate} disabled={isGenerating}>{isGenerating ? 'Generating…' : 'Generate'} <span aria-hidden="true">↓</span></button>
             </div>
           </div>
         )}
 
-        {activeStep === 7 && downloadedFilePath && (
+        {activeStep === 6 && downloadedFilePath && (
           <div className="complete-step">
             <div className="welcome-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7 16.5 13 22l12-13" /></svg></div>
             <p className="eyebrow">Complete</p>
             <h1>Project downloaded</h1>
-            <p className="description">Your Spring Boot Maven project was generated and saved as a ZIP archive.</p>
+            <p className="description">Your Spring Boot {savedMetadata ? labels[savedMetadata.buildTool] : ''} project was generated and saved as a ZIP archive.</p>
             <div className="download-location">
               <span>Downloaded project</span>
               <code>{downloadedFilePath}</code>

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/sivaprasadreddy/sbgen/generators/springboot"
+	"github.com/sivaprasadreddy/progen/generators/springboot"
 )
 
 var (
@@ -24,25 +24,24 @@ type AppGeneratorService struct{}
 
 type generatorConfiguration struct {
 	Project struct {
+		AppName     string `json:"appName"`
+		AppVersion  string `json:"appVersion"`
 		GroupID     string `json:"groupId"`
 		ArtifactID  string `json:"artifactId"`
 		PackageName string `json:"packageName"`
 		BuildTool   string `json:"buildTool"`
 	} `json:"project"`
 	Frontend struct {
-		Type         string  `json:"type"`
-		CSSFramework *string `json:"cssFramework"`
-		HTMX         bool    `json:"htmxSupport"`
+		Type string `json:"type"`
+		HTMX bool   `json:"htmxSupport"`
 	} `json:"frontend"`
 	Database struct {
 		Engine               string `json:"engine"`
 		MigrationTool        string `json:"migrationTool"`
 		PersistenceFramework string `json:"persistenceFramework"`
 	} `json:"database"`
-	Security struct {
-		Mode string `json:"mode"`
-	} `json:"security"`
 	Features []string `json:"features"`
+	AIModels []string `json:"aiModels"`
 }
 
 func (s *AppGeneratorService) GenerateProject(configurationJSON string) (filePath string, err error) {
@@ -127,16 +126,15 @@ func createUniqueZipFile(directory, name string) (*os.File, string, error) {
 
 func toProjectConfig(configuration generatorConfiguration) springboot.ProjectConfig {
 	buildTool := springboot.Maven
-	if configuration.Project.BuildTool != "maven" {
+	if configuration.Project.BuildTool == "gradle" {
 		buildTool = springboot.Gradle
 	}
 
-	appType := springboot.RestApi
-	switch configuration.Frontend.Type {
-	case "thymeleaf":
-		appType = springboot.WebApp
-	case "angular":
-		appType = springboot.SpringBootAngularFullStack
+	frontends := map[string]springboot.Frontend{
+		"none":      springboot.FrontendNone,
+		"thymeleaf": springboot.FrontendThymeleaf,
+		"jte":       springboot.FrontendJTE,
+		"angular":   springboot.FrontendAngular,
 	}
 	databaseTypes := map[string]springboot.DatabaseType{
 		"postgresql": springboot.PostgreSQL,
@@ -153,13 +151,19 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		"jooq":               springboot.SpringJOOQ,
 	}
 
+	frontend := frontends[configuration.Frontend.Type]
+	aiModels := []springboot.AIModelProvider{}
+	for _, model := range configuration.AIModels {
+		aiModels = append(aiModels, springboot.AIModelProvider(model))
+	}
+
 	return springboot.ProjectConfig{
-		AppType:               appType,
-		AppName:               strings.TrimSpace(configuration.Project.ArtifactID),
+		Frontend:              frontend,
+		AppName:               strings.TrimSpace(configuration.Project.AppName),
 		GroupID:               strings.TrimSpace(configuration.Project.GroupID),
 		ArtifactID:            strings.TrimSpace(configuration.Project.ArtifactID),
-		AppVersion:            "1.0.0",
-		BasePackage:           configuration.Project.PackageName,
+		AppVersion:            strings.TrimSpace(configuration.Project.AppVersion),
+		BasePackage:           strings.TrimSpace(configuration.Project.PackageName),
 		BuildTool:             buildTool,
 		DbType:                databaseTypes[configuration.Database.Engine],
 		DbMigrationTool:       migrationTools[configuration.Database.MigrationTool],
@@ -170,9 +174,13 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		RedisCachingSupport:   contains(configuration.Features, "redis-caching"),
 		OpenTelemetrySupport:  contains(configuration.Features, "opentelemetry"),
 		K8sSupport:            contains(configuration.Features, "kubernetes"),
-		ThymeleafSupport:      configuration.Frontend.Type == "thymeleaf",
-		HTMXSupport:           configuration.Frontend.HTMX,
+		HTMXSupport:           configuration.Frontend.HTMX && isServerRendered(configuration.Frontend.Type),
+		SpringAIModels:        aiModels,
 	}
+}
+
+func isServerRendered(frontendType string) bool {
+	return frontendType == "thymeleaf" || frontendType == "jte"
 }
 
 func zipDirectory(destination io.Writer, sourceDirectory string) error {
@@ -218,33 +226,33 @@ func zipDirectory(destination io.Writer, sourceDirectory string) error {
 }
 
 func validateConfiguration(configuration generatorConfiguration) error {
+	appName := strings.TrimSpace(configuration.Project.AppName)
+	if appName == "" {
+		return fmt.Errorf("application name is required")
+	}
+	if appName == "." || appName == ".." || filepath.Base(appName) != appName || strings.ContainsAny(appName, `/\\`) {
+		return fmt.Errorf("invalid application name %q", configuration.Project.AppName)
+	}
+	if strings.TrimSpace(configuration.Project.AppVersion) == "" {
+		return fmt.Errorf("application version is required")
+	}
 	if strings.TrimSpace(configuration.Project.GroupID) == "" {
 		return fmt.Errorf("group ID is required")
 	}
 	if strings.TrimSpace(configuration.Project.ArtifactID) == "" {
 		return fmt.Errorf("artifact ID is required")
 	}
-	artifactID := strings.TrimSpace(configuration.Project.ArtifactID)
-	if artifactID == "." || artifactID == ".." || filepath.Base(artifactID) != artifactID || strings.ContainsAny(artifactID, `/\\`) {
-		return fmt.Errorf("invalid artifact ID %q", configuration.Project.ArtifactID)
-	}
-	if !javaPackagePattern.MatchString(configuration.Project.PackageName) {
+	if !javaPackagePattern.MatchString(strings.TrimSpace(configuration.Project.PackageName)) {
 		return fmt.Errorf("invalid Java package name %q", configuration.Project.PackageName)
 	}
-	if !contains([]string{"maven", "gradle-groovy"}, configuration.Project.BuildTool) {
+	if !contains([]string{"maven", "gradle"}, configuration.Project.BuildTool) {
 		return fmt.Errorf("unsupported build tool %q", configuration.Project.BuildTool)
 	}
-	if !contains([]string{"none", "thymeleaf", "angular"}, configuration.Frontend.Type) {
+	if !contains([]string{"none", "thymeleaf", "jte", "angular"}, configuration.Frontend.Type) {
 		return fmt.Errorf("unsupported frontend type %q", configuration.Frontend.Type)
 	}
-	if configuration.Frontend.CSSFramework != nil && *configuration.Frontend.CSSFramework != "tailwind" {
-		return fmt.Errorf("unsupported CSS framework %q", *configuration.Frontend.CSSFramework)
-	}
-	if configuration.Frontend.Type != "none" && configuration.Frontend.CSSFramework == nil {
-		return fmt.Errorf("CSS framework is required for %s frontend", configuration.Frontend.Type)
-	}
-	if configuration.Frontend.HTMX && configuration.Frontend.Type != "thymeleaf" {
-		return fmt.Errorf("HTMX support requires the Thymeleaf frontend")
+	if configuration.Frontend.HTMX && !isServerRendered(configuration.Frontend.Type) {
+		return fmt.Errorf("HTMX support requires the Thymeleaf or JTE frontend")
 	}
 	if !contains([]string{"postgresql", "mysql", "mariadb"}, configuration.Database.Engine) {
 		return fmt.Errorf("unsupported database engine %q", configuration.Database.Engine)
@@ -255,18 +263,14 @@ func validateConfiguration(configuration generatorConfiguration) error {
 	if !contains([]string{"spring-data-jpa", "spring-jdbc-client", "jooq"}, configuration.Database.PersistenceFramework) {
 		return fmt.Errorf("unsupported persistence framework %q", configuration.Database.PersistenceFramework)
 	}
-	if !contains([]string{"none", "http-session", "jwt-security"}, configuration.Security.Mode) {
-		return fmt.Errorf("unsupported security mode %q", configuration.Security.Mode)
-	}
-	if configuration.Security.Mode == "http-session" && configuration.Frontend.Type != "thymeleaf" {
-		return fmt.Errorf("HTTP-session security requires the Thymeleaf frontend")
-	}
-	if configuration.Security.Mode == "jwt-security" && configuration.Frontend.Type == "thymeleaf" {
-		return fmt.Errorf("JWT-security with Thymeleaf frontend is invalid")
-	}
 	for _, feature := range configuration.Features {
 		if !contains([]string{"email", "spring-cloud-aws", "rabbitmq", "redis-caching", "opentelemetry", "kubernetes"}, feature) {
 			return fmt.Errorf("unsupported feature %q", feature)
+		}
+	}
+	for _, model := range configuration.AIModels {
+		if !springboot.AIModelProvider(model).IsValid() {
+			return fmt.Errorf("unsupported Spring AI model provider %q", model)
 		}
 	}
 	return nil
