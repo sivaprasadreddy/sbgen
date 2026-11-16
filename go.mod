@@ -3,7 +3,7 @@ module github.com/sivaprasadreddy/sbgen
 go 1.27.4
 
 require (
-	github.com/sivaprasadreddy/progen v1.0.6
+	github.com/sivaprasadreddy/progen v1.1.0
 	github.com/wailsapp/wails/v3 v3.1.0
 )
 
