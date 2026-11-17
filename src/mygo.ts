@@ -47,6 +47,14 @@ export type MigrationTool = "flyway" | "liquibase";
 /** PersistenceFramework is how the generated project accesses the database. */
 export type PersistenceFramework = "spring-data-jpa" | "spring-jdbc-client" | "jooq";
 
+/** ProjectDefaults are the values the Project step starts a new application with. */
+export interface ProjectDefaults {
+  appVersion: string;
+  groupId: string;
+  buildTool: BuildTool;
+  taskRunner: TaskRunner;
+}
+
 /** ProjectSettings holds the project coordinates and build setup. */
 export interface ProjectSettings {
   appName: string;
@@ -103,4 +111,18 @@ export const TemplateService = {
    * that ID. Names are unique, ignoring case.
    */
   save: bind<[Template], Template>("TemplateService.Save", (template: Template) => [template]),
+} as const;
+
+/**
+ * DefaultsService stores the user's project defaults in defaults.json in a
+ * directory of its own, the app's user data directory.
+ */
+export const DefaultsService = {
+  /**
+   * Get returns the saved project defaults, or the built-in ones until the user
+   * saves their own.
+   */
+  get: bind<[], ProjectDefaults>("DefaultsService.Get", () => []),
+  /** Save stores defaults and returns them as saved. */
+  save: bind<[ProjectDefaults], ProjectDefaults>("DefaultsService.Save", (defaults: ProjectDefaults) => [defaults]),
 } as const;

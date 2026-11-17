@@ -3,10 +3,8 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -116,19 +114,16 @@ func (s *TemplateService) load() ([]Template, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
+	var templates []Template
+	found, err := readJSONFile(path, &templates)
+	if err != nil {
+		return nil, fmt.Errorf("read templates: %w", err)
+	}
+	if !found {
 		// Before the user's first change, the starter templates. The first
 		// save or delete writes them to templates.json with that change, so
 		// from then on they are the user's to update or delete.
 		return starterTemplates(), nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("read templates: %w", err)
-	}
-	var templates []Template
-	if err := json.Unmarshal(data, &templates); err != nil {
-		return nil, fmt.Errorf("read templates %s: %w", path, err)
 	}
 	if templates == nil {
 		templates = []Template{}
@@ -136,32 +131,12 @@ func (s *TemplateService) load() ([]Template, error) {
 	return templates, nil
 }
 
-// store writes templates to a temporary file and renames it over
-// templates.json, so a failed write never leaves a truncated file.
 func (s *TemplateService) store(templates []Template) error {
 	path, err := s.path()
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("create templates directory: %w", err)
-	}
-	data, err := json.MarshalIndent(templates, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode templates: %w", err)
-	}
-	file, err := os.CreateTemp(filepath.Dir(path), templatesFileName+".*")
-	if err != nil {
-		return fmt.Errorf("save templates: %w", err)
-	}
-	_, writeErr := file.Write(data)
-	closeErr := file.Close()
-	if err := errors.Join(writeErr, closeErr); err != nil {
-		_ = os.Remove(file.Name())
-		return fmt.Errorf("save templates: %w", err)
-	}
-	if err := os.Rename(file.Name(), path); err != nil {
-		_ = os.Remove(file.Name())
+	if err := writeJSONFile(path, templates); err != nil {
 		return fmt.Errorf("save templates: %w", err)
 	}
 	return nil

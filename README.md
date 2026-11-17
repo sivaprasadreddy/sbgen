@@ -49,6 +49,14 @@ frontends (Thymeleaf, JTE) and JWT for REST API, Angular, and React applications
 7. The project is saved as `~/Downloads/<application-name>.zip` (a numeric suffix is added if the
    file already exists). Unzip it and follow the generated project's `README.md`.
 
+### Defaults
+
+The **Defaults** link below the steps sets the values a new project starts with on the **Project** step:
+application version, Group ID (which also starts the package name), build tool, and task runner.
+**Restore built-in values** fills in SBGen's own (1.0.0, `dev.sivalabs`, Maven, Mise); click
+**Save defaults** to keep them. A project you have already started, and templates, keep their own values.
+Defaults are stored in `~/Library/Application Support/SBGen/defaults.json`.
+
 ### Templates
 
 A template is a saved selection of every step's options, so you can reuse a combination you
@@ -126,9 +134,10 @@ Apps you build yourself are signed locally (ad-hoc) and don't trigger the Gateke
 
 ### Project structure
 
-- `main.go` – binds `AppGeneratorService` and `TemplateService` and opens the application window.
+- `main.go` – binds `AppGeneratorService`, `TemplateService`, and `DefaultsService` and opens the application window.
 - `app_generator.go` – `AppGeneratorService`, which validates the wizard's configuration,
   maps it to a progen `ProjectConfig`, generates the project, and zips it into `~/Downloads`.
+- `defaults.go` – `DefaultsService`, which stores the Project step's defaults in the app's user data directory.
 - `templates.go` – `TemplateService`, which lists, saves, and deletes templates in the app's user data directory.
 - `src/` – the React + TypeScript wizard UI. `src/mygo.ts` holds the typed TypeScript client that
   `mygo generate` creates from the Go service; `mygo dev` and `mygo build` regenerate it. Don't edit it.

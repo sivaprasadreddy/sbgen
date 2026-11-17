@@ -2,12 +2,16 @@ import { FormEvent, useEffect, useState } from 'react'
 // Generated from the Go code by `mygo generate`.
 import {
   AppGeneratorService,
+  DefaultsService,
   type AIModel,
+  type BuildTool,
   type DatabaseSettings,
   type Feature,
   type FrontendType as Frontend,
   type GeneratorConfiguration,
+  type ProjectDefaults,
   type ProjectSettings,
+  type TaskRunner,
   type Template,
   TemplateService,
 } from './mygo'
@@ -73,15 +77,40 @@ const labels: Record<string, string> = {
 
 type ProjectMetadata = ProjectSettings
 
-const initialMetadata: ProjectMetadata = {
-  appName: 'demo',
+// The defaults until the user saves their own on the Defaults page; DefaultsService has the same.
+const builtInDefaults: ProjectDefaults = {
   appVersion: '1.0.0',
   groupId: 'dev.sivalabs',
-  artifactId: 'demo',
-  packageName: 'dev.sivalabs.demo',
   buildTool: 'maven',
   taskRunner: 'mise',
 }
+
+// The Project step's starting values for a new application.
+const metadataFromDefaults = (defaults: ProjectDefaults): ProjectMetadata => ({
+  appName: 'demo',
+  appVersion: defaults.appVersion,
+  groupId: defaults.groupId,
+  artifactId: 'demo',
+  packageName: deriveBasePackage(defaults.groupId, 'demo'),
+  buildTool: defaults.buildTool,
+  taskRunner: defaults.taskRunner,
+})
+
+const sameMetadata = (a: ProjectMetadata, b: ProjectMetadata) =>
+  (Object.keys(a) as (keyof ProjectMetadata)[]).every((key) => a[key] === b[key])
+
+const buildToolOptions: ReadonlyArray<readonly [BuildTool, string, string]> = [
+  ['maven', 'Maven', 'pom.xml'],
+  ['gradle', 'Gradle', 'build.gradle'],
+]
+
+const taskRunnerOptions: ReadonlyArray<readonly [TaskRunner, string, string]> = [
+  ['mise', 'Mise', 'mise.toml installs the JDK and runs tasks'],
+  ['taskfile', 'Taskfile', 'Taskfile.yml with .sdkmanrc for SDKMAN'],
+]
+
+// The pages the sidebar opens in place of the current step, which they return to.
+type Page = 'defaults' | 'templates'
 
 type FrontendConfiguration = {
   frontend: Frontend
@@ -119,7 +148,7 @@ const templateSummary = ({ project, frontend, database, features, aiModels }: Ge
 
 function App() {
   const [activeStep, setActiveStep] = useState(0)
-  const [metadata, setMetadata] = useState<ProjectMetadata>(initialMetadata)
+  const [metadata, setMetadata] = useState<ProjectMetadata>(() => metadataFromDefaults(builtInDefaults))
   const [savedMetadata, setSavedMetadata] = useState<ProjectMetadata | null>(null)
   const [frontend, setFrontend] = useState<FrontendConfiguration>(initialFrontendConfiguration)
   const [savedFrontend, setSavedFrontend] = useState<FrontendConfiguration | null>(null)
@@ -137,8 +166,11 @@ function App() {
   // The template the current selection was loaded from or last saved as.
   const [activeTemplate, setActiveTemplate] = useState<Template | null>(null)
   const [pendingDeleteId, setPendingDeleteId] = useState('')
-  // The Templates page shows instead of the current step, which it returns to.
-  const [showTemplates, setShowTemplates] = useState(false)
+  const [page, setPage] = useState<Page | null>(null)
+  const [projectDefaults, setProjectDefaults] = useState<ProjectDefaults>(builtInDefaults)
+  const [defaultsDraft, setDefaultsDraft] = useState<ProjectDefaults>(builtInDefaults)
+  const [defaultsMessage, setDefaultsMessage] = useState<{ kind: 'success' | 'error', text: string } | null>(null)
+  const [isSavingDefaults, setIsSavingDefaults] = useState(false)
   const [isTemplatePanelOpen, setIsTemplatePanelOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [templateMessage, setTemplateMessage] = useState<{ kind: 'success' | 'error', text: string } | null>(null)
@@ -153,8 +185,22 @@ function App() {
     }
   }
 
+  // Moves a Project step that still shows the previous defaults to the next ones. One the user
+  // changed, confirmed with Next, or filled from a template keeps its values.
+  const followDefaults = (previous: ProjectDefaults, next: ProjectDefaults) => {
+    if (savedMetadata || activeTemplate) return
+    setMetadata((current) => sameMetadata(current, metadataFromDefaults(previous)) ? metadataFromDefaults(next) : current)
+  }
+
   useEffect(() => {
     void refreshTemplates()
+    DefaultsService.get().then((saved) => {
+      setProjectDefaults(saved)
+      followDefaults(builtInDefaults, saved)
+    }, (error) => {
+      // New projects then start from the built-in defaults.
+      setDefaultsMessage({ kind: 'error', text: `Could not load defaults: ${errorMessage(error)}` })
+    })
   }, [])
 
   const updateMetadata = <K extends keyof ProjectMetadata>(field: K, value: ProjectMetadata[K]) => {
@@ -245,23 +291,49 @@ function App() {
     setTemplateMessage(null)
     setGenerationError('')
     setPendingDeleteId('')
-    setShowTemplates(false)
+    setPage(null)
     setActiveStep(step)
   }
 
-  const openTemplates = () => {
+  const openPage = (next: Page) => {
     setPendingDeleteId('')
-    setShowTemplates(true)
-    void refreshTemplates()
+    if (next === 'templates') void refreshTemplates()
+    if (next === 'defaults') {
+      setDefaultsDraft(projectDefaults)
+      setDefaultsMessage(null)
+    }
+    setPage(next)
   }
 
-  const closeTemplates = () => {
+  const closePage = () => {
     setPendingDeleteId('')
-    setShowTemplates(false)
+    setPage(null)
+  }
+
+  const updateDefaultsDraft = <K extends keyof ProjectDefaults>(field: K, value: ProjectDefaults[K]) => {
+    setDefaultsDraft((current) => ({ ...current, [field]: value }))
+    setDefaultsMessage(null)
+  }
+
+  const handleDefaultsSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setIsSavingDefaults(true)
+    setDefaultsMessage(null)
+    try {
+      const saved = await DefaultsService.save(defaultsDraft)
+      followDefaults(projectDefaults, saved)
+      setProjectDefaults(saved)
+      setDefaultsDraft(saved)
+      setDefaultsMessage({ kind: 'success', text: 'Saved. New projects start with these values.' })
+    } catch (error) {
+      setDefaultsMessage({ kind: 'error', text: errorMessage(error) })
+    } finally {
+      setIsSavingDefaults(false)
+    }
   }
 
   const resetSelection = () => {
-    setMetadata(initialMetadata)
+    setMetadata(metadataFromDefaults(projectDefaults))
     setSavedMetadata(null)
     setFrontend(initialFrontendConfiguration)
     setSavedFrontend(null)
@@ -344,7 +416,7 @@ function App() {
     setActiveStep(0)
   }
 
-  const shownStep = showTemplates ? -1 : activeStep
+  const shownStep = page ? -1 : activeStep
 
   // The templates with their Update and Delete actions, on the Welcome step and the Templates page.
   const renderTemplateList = () => (
@@ -393,9 +465,22 @@ function App() {
         <nav aria-label="Library">
           <button
             type="button"
-            className={`sidebar-link${showTemplates ? ' active' : ''}`}
-            aria-current={showTemplates ? 'page' : undefined}
-            onClick={showTemplates ? closeTemplates : openTemplates}
+            className={`sidebar-link${page === 'defaults' ? ' active' : ''}`}
+            aria-current={page === 'defaults' ? 'page' : undefined}
+            onClick={page === 'defaults' ? closePage : () => openPage('defaults')}
+            disabled={isGenerating}
+            title="Set the values new projects start with"
+          >
+            <span className="step-number" aria-hidden="true">
+              <svg viewBox="0 0 16 16"><path d="M3 4.5h10M3 11.5h10" /><circle cx="6" cy="4.5" r="1.6" /><circle cx="10.5" cy="11.5" r="1.6" /></svg>
+            </span>
+            <span className="sidebar-link-label">Defaults</span>
+          </button>
+          <button
+            type="button"
+            className={`sidebar-link${page === 'templates' ? ' active' : ''}`}
+            aria-current={page === 'templates' ? 'page' : undefined}
+            onClick={page === 'templates' ? closePage : () => openPage('templates')}
             disabled={isGenerating}
             title="Show all templates"
           >
@@ -432,7 +517,7 @@ function App() {
           </div>
         )}
 
-        {showTemplates && (
+        {page === 'templates' && (
           <div className="project-form templates-page" aria-labelledby="templates-page-title">
             <div className="form-heading">
               <p className="eyebrow">{templates.length === 1 ? '1 template' : `${templates.length} templates`}</p>
@@ -444,9 +529,74 @@ function App() {
               ? renderTemplateList()
               : <p className="templates-empty">No templates yet. Make your selections, then use <strong>Save as template</strong> on the Review step.</p>}
             <div className="form-actions">
-              <button type="button" className="back-button" onClick={closeTemplates}>Back to {steps[activeStep]}</button>
+              <button type="button" className="back-button" onClick={closePage}>Back to {steps[activeStep]}</button>
             </div>
           </div>
+        )}
+
+        {page === 'defaults' && (
+          <form className="project-form defaults-page" aria-labelledby="defaults-page-title" onSubmit={handleDefaultsSubmit}>
+            <div className="form-heading">
+              <p className="eyebrow">Defaults</p>
+              <h1 id="defaults-page-title">Project Defaults</h1>
+              <p>New projects start with these values on the Project step. Templates keep their own.</p>
+            </div>
+
+            <div className="field-grid">
+              <label className="field">
+                <span>Application Version</span>
+                <input required value={defaultsDraft.appVersion} onChange={(event) => updateDefaultsDraft('appVersion', event.target.value)} placeholder="1.0.0" autoComplete="off" />
+                <small>The initial version of new applications.</small>
+              </label>
+              <label className="field">
+                <span>Group ID</span>
+                <input required value={defaultsDraft.groupId} onChange={(event) => updateDefaultsDraft('groupId', event.target.value)} placeholder="com.example" autoComplete="off" />
+                <small>Also the start of the package name.</small>
+              </label>
+            </div>
+
+            <fieldset className="build-tool">
+              <legend>Build Tool</legend>
+              <div className="build-options">
+                {buildToolOptions.map(([value, label, file]) => (
+                  <label className={defaultsDraft.buildTool === value ? 'selected' : ''} key={value}>
+                    <input type="radio" name="defaultBuildTool" value={value} checked={defaultsDraft.buildTool === value} onChange={() => updateDefaultsDraft('buildTool', value)} />
+                    <span><strong>{label}</strong><small>{file}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="build-tool">
+              <legend>Task Runner</legend>
+              <div className="build-options">
+                {taskRunnerOptions.map(([value, label, description]) => (
+                  <label className={defaultsDraft.taskRunner === value ? 'selected' : ''} key={value}>
+                    <input type="radio" name="defaultTaskRunner" value={value} checked={defaultsDraft.taskRunner === value} onChange={() => updateDefaultsDraft('taskRunner', value)} />
+                    <span><strong>{label}</strong><small>{description}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {defaultsMessage && <p className={`template-message defaults-message ${defaultsMessage.kind}`} role={defaultsMessage.kind === 'error' ? 'alert' : 'status'}>{defaultsMessage.text}</p>}
+            <div className="form-actions">
+              <button
+                type="button"
+                className="back-button template-toggle"
+                onClick={() => {
+                  setDefaultsDraft(builtInDefaults)
+                  setDefaultsMessage(null)
+                }}
+                disabled={isSavingDefaults}
+                title="Fill in SBGen's own defaults; Save to keep them"
+              >
+                Restore built-in values
+              </button>
+              <button type="button" className="back-button" onClick={closePage} disabled={isSavingDefaults}>Back to {steps[activeStep]}</button>
+              <button type="submit" className="next-button" disabled={isSavingDefaults}>{isSavingDefaults ? 'Saving…' : 'Save defaults'}</button>
+            </div>
+          </form>
         )}
 
         {shownStep === 1 && (
@@ -488,10 +638,7 @@ function App() {
             <fieldset className="build-tool">
               <legend>Build Tool</legend>
               <div className="build-options">
-                {([
-                  ['maven', 'Maven', 'pom.xml'],
-                  ['gradle', 'Gradle', 'build.gradle'],
-                ] as const).map(([value, label, file]) => (
+                {buildToolOptions.map(([value, label, file]) => (
                   <label className={metadata.buildTool === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="buildTool" value={value} checked={metadata.buildTool === value} onChange={() => updateMetadata('buildTool', value)} />
                     <span><strong>{label}</strong><small>{file}</small></span>
@@ -503,10 +650,7 @@ function App() {
             <fieldset className="build-tool">
               <legend>Task Runner</legend>
               <div className="build-options">
-                {([
-                  ['mise', 'Mise', 'mise.toml installs the JDK and runs tasks'],
-                  ['taskfile', 'Taskfile', 'Taskfile.yml with .sdkmanrc for SDKMAN'],
-                ] as const).map(([value, label, description]) => (
+                {taskRunnerOptions.map(([value, label, description]) => (
                   <label className={metadata.taskRunner === value ? 'selected' : ''} key={value}>
                     <input type="radio" name="taskRunner" value={value} checked={metadata.taskRunner === value} onChange={() => updateMetadata('taskRunner', value)} />
                     <span><strong>{label}</strong><small>{description}</small></span>
