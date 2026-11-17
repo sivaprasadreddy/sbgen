@@ -1,35 +1,42 @@
 package main
 
 import (
+	"archive/zip"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/sivaprasadreddy/progen/generators/springboot"
 )
 
-func validConfiguration() generatorConfiguration {
-	var c generatorConfiguration
-	c.Project.AppName = "demo"
-	c.Project.AppVersion = "1.0.0"
-	c.Project.GroupID = "dev.sivalabs"
-	c.Project.ArtifactID = "demo"
-	c.Project.PackageName = "dev.sivalabs.demo"
-	c.Project.BuildTool = "maven"
-	c.Project.TaskRunner = "mise"
-	c.Frontend.Type = "none"
-	c.Database.Engine = "postgresql"
-	c.Database.MigrationTool = "flyway"
-	c.Database.PersistenceFramework = "spring-data-jpa"
-	return c
+func validConfiguration() GeneratorConfiguration {
+	return GeneratorConfiguration{
+		Project: ProjectSettings{
+			AppName:     "demo",
+			AppVersion:  "1.0.0",
+			GroupID:     "dev.sivalabs",
+			ArtifactID:  "demo",
+			PackageName: "dev.sivalabs.demo",
+			BuildTool:   BuildToolMaven,
+			TaskRunner:  TaskRunnerMise,
+		},
+		Frontend: FrontendSettings{Type: FrontendNone},
+		Database: DatabaseSettings{
+			Engine:               DatabasePostgreSQL,
+			MigrationTool:        MigrationFlyway,
+			PersistenceFramework: PersistenceSpringDataJPA,
+		},
+	}
 }
 
 func TestToProjectConfigMapsJTEWithHTMXAndAIModels(t *testing.T) {
 	c := validConfiguration()
-	c.Project.BuildTool = "gradle"
-	c.Frontend.Type = "jte"
+	c.Project.BuildTool = BuildToolGradle
+	c.Frontend.Type = FrontendJTE
 	c.Frontend.HTMX = true
-	c.Features = []string{"email", "kubernetes"}
-	c.AIModels = []string{"openai", "ollama"}
+	c.Features = []Feature{FeatureEmail, FeatureKubernetes}
+	c.AIModels = []AIModel{AIModelOpenAI, AIModelOllama}
 
 	if err := validateConfiguration(c); err != nil {
 		t.Fatalf("expected valid configuration, got %v", err)
@@ -55,8 +62,8 @@ func TestToProjectConfigMapsJTEWithHTMXAndAIModels(t *testing.T) {
 
 func TestToProjectConfigMapsReactWithTaskfile(t *testing.T) {
 	c := validConfiguration()
-	c.Project.TaskRunner = "taskfile"
-	c.Frontend.Type = "react"
+	c.Project.TaskRunner = TaskRunnerTaskfile
+	c.Frontend.Type = FrontendReact
 
 	if err := validateConfiguration(c); err != nil {
 		t.Fatalf("expected valid configuration, got %v", err)
@@ -79,17 +86,18 @@ func TestToProjectConfigMapsMiseTaskRunner(t *testing.T) {
 }
 
 func TestValidateConfigurationRejectsInvalidCombinations(t *testing.T) {
-	cases := map[string]func(*generatorConfiguration){
-		"missing app name":    func(c *generatorConfiguration) { c.Project.AppName = " " },
-		"path in app name":    func(c *generatorConfiguration) { c.Project.AppName = "../demo" },
-		"missing version":     func(c *generatorConfiguration) { c.Project.AppVersion = "" },
-		"unknown build tool":  func(c *generatorConfiguration) { c.Project.BuildTool = "gradle-groovy" },
-		"missing task runner": func(c *generatorConfiguration) { c.Project.TaskRunner = "" },
-		"unknown task runner": func(c *generatorConfiguration) { c.Project.TaskRunner = "make" },
-		"htmx with react":     func(c *generatorConfiguration) { c.Frontend.Type = "react"; c.Frontend.HTMX = true },
-		"htmx without views":  func(c *generatorConfiguration) { c.Frontend.HTMX = true },
-		"unknown ai provider": func(c *generatorConfiguration) { c.AIModels = []string{"gemini"} },
-		"unknown feature":     func(c *generatorConfiguration) { c.Features = []string{"htmx"} },
+	cases := map[string]func(*GeneratorConfiguration){
+		"missing app name":    func(c *GeneratorConfiguration) { c.Project.AppName = " " },
+		"path in app name":    func(c *GeneratorConfiguration) { c.Project.AppName = "../demo" },
+		"missing version":     func(c *GeneratorConfiguration) { c.Project.AppVersion = "" },
+		"invalid package":     func(c *GeneratorConfiguration) { c.Project.PackageName = "1dev.sivalabs" },
+		"unknown build tool":  func(c *GeneratorConfiguration) { c.Project.BuildTool = "gradle-groovy" },
+		"missing task runner": func(c *GeneratorConfiguration) { c.Project.TaskRunner = "" },
+		"unknown task runner": func(c *GeneratorConfiguration) { c.Project.TaskRunner = "make" },
+		"htmx with react":     func(c *GeneratorConfiguration) { c.Frontend.Type = FrontendReact; c.Frontend.HTMX = true },
+		"htmx without views":  func(c *GeneratorConfiguration) { c.Frontend.HTMX = true },
+		"unknown ai provider": func(c *GeneratorConfiguration) { c.AIModels = []AIModel{"gemini"} },
+		"unknown feature":     func(c *GeneratorConfiguration) { c.Features = []Feature{"htmx"} },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -99,5 +107,42 @@ func TestValidateConfigurationRejectsInvalidCombinations(t *testing.T) {
 				t.Errorf("expected validation error")
 			}
 		})
+	}
+}
+
+func TestGenerateProjectWritesZipToDownloads(t *testing.T) {
+	if testing.Short() {
+		t.Skip("generates a full project")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	path, err := (&AppGeneratorService{}).GenerateProject(validConfiguration())
+	if err != nil {
+		t.Fatalf("generate project: %v", err)
+	}
+	if want := filepath.Join(home, "Downloads", "demo.zip"); path != want {
+		t.Errorf("expected archive at %s, got %s", want, path)
+	}
+	archive, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatalf("open archive: %v", err)
+	}
+	defer archive.Close()
+	if !slices.ContainsFunc(archive.File, func(f *zip.File) bool { return f.Name == "demo/pom.xml" }) {
+		t.Errorf("archive has no demo/pom.xml")
+	}
+
+	// A second generation must not overwrite the first archive.
+	second, err := (&AppGeneratorService{}).GenerateProject(validConfiguration())
+	if err != nil {
+		t.Fatalf("generate second project: %v", err)
+	}
+	if filepath.Base(second) != "demo-1.zip" {
+		t.Errorf("expected demo-1.zip, got %s", second)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("first archive is gone: %v", err)
 	}
 }

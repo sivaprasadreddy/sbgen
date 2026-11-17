@@ -2,7 +2,7 @@ package main
 
 import (
 	"archive/zip"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -20,36 +20,120 @@ var (
 	generationMutex    sync.Mutex
 )
 
-type AppGeneratorService struct{}
+// BuildTool is the build system of the generated project.
+type BuildTool string
 
-type generatorConfiguration struct {
-	Project struct {
-		AppName     string `json:"appName"`
-		AppVersion  string `json:"appVersion"`
-		GroupID     string `json:"groupId"`
-		ArtifactID  string `json:"artifactId"`
-		PackageName string `json:"packageName"`
-		BuildTool   string `json:"buildTool"`
-		TaskRunner  string `json:"taskRunner"`
-	} `json:"project"`
-	Frontend struct {
-		Type string `json:"type"`
-		HTMX bool   `json:"htmxSupport"`
-	} `json:"frontend"`
-	Database struct {
-		Engine               string `json:"engine"`
-		MigrationTool        string `json:"migrationTool"`
-		PersistenceFramework string `json:"persistenceFramework"`
-	} `json:"database"`
-	Features []string `json:"features"`
-	AIModels []string `json:"aiModels"`
+const (
+	BuildToolMaven  BuildTool = "maven"
+	BuildToolGradle BuildTool = "gradle"
+)
+
+// TaskRunner runs the generated project's common tasks.
+type TaskRunner string
+
+const (
+	TaskRunnerMise     TaskRunner = "mise"
+	TaskRunnerTaskfile TaskRunner = "taskfile"
+)
+
+// FrontendType is how the generated project's user interface is built.
+type FrontendType string
+
+const (
+	FrontendNone      FrontendType = "none"
+	FrontendThymeleaf FrontendType = "thymeleaf"
+	FrontendJTE       FrontendType = "jte"
+	FrontendAngular   FrontendType = "angular"
+	FrontendReact     FrontendType = "react"
+)
+
+// DatabaseEngine is the database the generated project connects to.
+type DatabaseEngine string
+
+const (
+	DatabasePostgreSQL DatabaseEngine = "postgresql"
+	DatabaseMySQL      DatabaseEngine = "mysql"
+	DatabaseMariaDB    DatabaseEngine = "mariadb"
+)
+
+// MigrationTool manages the generated project's database schema.
+type MigrationTool string
+
+const (
+	MigrationFlyway    MigrationTool = "flyway"
+	MigrationLiquibase MigrationTool = "liquibase"
+)
+
+// PersistenceFramework is how the generated project accesses the database.
+type PersistenceFramework string
+
+const (
+	PersistenceSpringDataJPA    PersistenceFramework = "spring-data-jpa"
+	PersistenceSpringJdbcClient PersistenceFramework = "spring-jdbc-client"
+	PersistenceJOOQ             PersistenceFramework = "jooq"
+)
+
+// Feature is an optional capability of the generated project.
+type Feature string
+
+const (
+	FeatureEmail          Feature = "email"
+	FeatureSpringCloudAWS Feature = "spring-cloud-aws"
+	FeatureRabbitMQ       Feature = "rabbitmq"
+	FeatureRedisCaching   Feature = "redis-caching"
+	FeatureOpenTelemetry  Feature = "opentelemetry"
+	FeatureKubernetes     Feature = "kubernetes"
+)
+
+// AIModel is a Spring AI chat model provider.
+type AIModel string
+
+const (
+	AIModelOllama    AIModel = "ollama"
+	AIModelOpenAI    AIModel = "openai"
+	AIModelAnthropic AIModel = "anthropic"
+)
+
+// ProjectSettings holds the project coordinates and build setup.
+type ProjectSettings struct {
+	AppName     string     `json:"appName"`
+	AppVersion  string     `json:"appVersion"`
+	GroupID     string     `json:"groupId"`
+	ArtifactID  string     `json:"artifactId"`
+	PackageName string     `json:"packageName"`
+	BuildTool   BuildTool  `json:"buildTool"`
+	TaskRunner  TaskRunner `json:"taskRunner"`
 }
 
-func (s *AppGeneratorService) GenerateProject(configurationJSON string) (filePath string, err error) {
-	var configuration generatorConfiguration
-	if err := json.Unmarshal([]byte(configurationJSON), &configuration); err != nil {
-		return "", fmt.Errorf("invalid project configuration: %w", err)
-	}
+// FrontendSettings selects the generated project's user interface.
+type FrontendSettings struct {
+	Type FrontendType `json:"type"`
+	HTMX bool         `json:"htmxSupport"`
+}
+
+// DatabaseSettings selects the generated project's database stack.
+type DatabaseSettings struct {
+	Engine               DatabaseEngine       `json:"engine"`
+	MigrationTool        MigrationTool        `json:"migrationTool"`
+	PersistenceFramework PersistenceFramework `json:"persistenceFramework"`
+}
+
+// GeneratorConfiguration is everything the user chose in the wizard.
+type GeneratorConfiguration struct {
+	Project  ProjectSettings  `json:"project"`
+	Frontend FrontendSettings `json:"frontend"`
+	Database DatabaseSettings `json:"database"`
+	Features []Feature        `json:"features"`
+	AIModels []AIModel        `json:"aiModels"`
+}
+
+// AppGeneratorService generates Spring Boot projects.
+type AppGeneratorService struct{}
+
+// GenerateProject generates a Spring Boot project for configuration, saves it
+// as a ZIP archive in the user's Downloads directory and returns the
+// archive's path.
+func (s *AppGeneratorService) GenerateProject(configuration GeneratorConfiguration) (string, error) {
 	if err := validateConfiguration(configuration); err != nil {
 		return "", err
 	}
@@ -125,46 +209,46 @@ func createUniqueZipFile(directory, name string) (*os.File, string, error) {
 	}
 }
 
-func toProjectConfig(configuration generatorConfiguration) springboot.ProjectConfig {
+func toProjectConfig(configuration GeneratorConfiguration) springboot.ProjectConfig {
 	buildTool := springboot.Maven
-	if configuration.Project.BuildTool == "gradle" {
+	if configuration.Project.BuildTool == BuildToolGradle {
 		buildTool = springboot.Gradle
 	}
 
-	frontends := map[string]springboot.Frontend{
-		"none":      springboot.FrontendNone,
-		"thymeleaf": springboot.FrontendThymeleaf,
-		"jte":       springboot.FrontendJTE,
-		"angular":   springboot.FrontendAngular,
-		"react":     springboot.FrontendReact,
+	frontends := map[FrontendType]springboot.Frontend{
+		FrontendNone:      springboot.FrontendNone,
+		FrontendThymeleaf: springboot.FrontendThymeleaf,
+		FrontendJTE:       springboot.FrontendJTE,
+		FrontendAngular:   springboot.FrontendAngular,
+		FrontendReact:     springboot.FrontendReact,
 	}
-	taskRunners := map[string]springboot.TaskRunner{
-		"mise":     springboot.TaskRunnerMise,
-		"taskfile": springboot.TaskRunnerTaskfile,
+	taskRunners := map[TaskRunner]springboot.TaskRunner{
+		TaskRunnerMise:     springboot.TaskRunnerMise,
+		TaskRunnerTaskfile: springboot.TaskRunnerTaskfile,
 	}
-	databaseTypes := map[string]springboot.DatabaseType{
-		"postgresql": springboot.PostgreSQL,
-		"mysql":      springboot.MySQL,
-		"mariadb":    springboot.MariaDB,
+	databaseTypes := map[DatabaseEngine]springboot.DatabaseType{
+		DatabasePostgreSQL: springboot.PostgreSQL,
+		DatabaseMySQL:      springboot.MySQL,
+		DatabaseMariaDB:    springboot.MariaDB,
 	}
-	migrationTools := map[string]springboot.DbMigrationTool{
-		"flyway":    springboot.Flyway,
-		"liquibase": springboot.Liquibase,
+	migrationTools := map[MigrationTool]springboot.DbMigrationTool{
+		MigrationFlyway:    springboot.Flyway,
+		MigrationLiquibase: springboot.Liquibase,
 	}
-	persistenceTypes := map[string]springboot.PersistenceType{
-		"spring-data-jpa":    springboot.SpringDataJPA,
-		"spring-jdbc-client": springboot.SpringJdbcClient,
-		"jooq":               springboot.SpringJOOQ,
+	persistenceTypes := map[PersistenceFramework]springboot.PersistenceType{
+		PersistenceSpringDataJPA:    springboot.SpringDataJPA,
+		PersistenceSpringJdbcClient: springboot.SpringJdbcClient,
+		PersistenceJOOQ:             springboot.SpringJOOQ,
 	}
 
-	frontend := frontends[configuration.Frontend.Type]
 	aiModels := []springboot.AIModelProvider{}
 	for _, model := range configuration.AIModels {
 		aiModels = append(aiModels, springboot.AIModelProvider(model))
 	}
 
+	features := configuration.Features
 	return springboot.ProjectConfig{
-		Frontend:              frontend,
+		Frontend:              frontends[configuration.Frontend.Type],
 		AppName:               strings.TrimSpace(configuration.Project.AppName),
 		GroupID:               strings.TrimSpace(configuration.Project.GroupID),
 		ArtifactID:            strings.TrimSpace(configuration.Project.ArtifactID),
@@ -175,19 +259,19 @@ func toProjectConfig(configuration generatorConfiguration) springboot.ProjectCon
 		DbType:                databaseTypes[configuration.Database.Engine],
 		DbMigrationTool:       migrationTools[configuration.Database.MigrationTool],
 		PersistenceType:       persistenceTypes[configuration.Database.PersistenceFramework],
-		SpringCloudAWSSupport: contains(configuration.Features, "spring-cloud-aws"),
-		EmailSupport:          contains(configuration.Features, "email"),
-		RabbitMQSupport:       contains(configuration.Features, "rabbitmq"),
-		RedisCachingSupport:   contains(configuration.Features, "redis-caching"),
-		OpenTelemetrySupport:  contains(configuration.Features, "opentelemetry"),
-		K8sSupport:            contains(configuration.Features, "kubernetes"),
+		SpringCloudAWSSupport: slices.Contains(features, FeatureSpringCloudAWS),
+		EmailSupport:          slices.Contains(features, FeatureEmail),
+		RabbitMQSupport:       slices.Contains(features, FeatureRabbitMQ),
+		RedisCachingSupport:   slices.Contains(features, FeatureRedisCaching),
+		OpenTelemetrySupport:  slices.Contains(features, FeatureOpenTelemetry),
+		K8sSupport:            slices.Contains(features, FeatureKubernetes),
 		HTMXSupport:           configuration.Frontend.HTMX && isServerRendered(configuration.Frontend.Type),
 		SpringAIModels:        aiModels,
 	}
 }
 
-func isServerRendered(frontendType string) bool {
-	return frontendType == "thymeleaf" || frontendType == "jte"
+func isServerRendered(frontendType FrontendType) bool {
+	return frontendType == FrontendThymeleaf || frontendType == FrontendJTE
 }
 
 func zipDirectory(destination io.Writer, sourceDirectory string) error {
@@ -232,49 +316,56 @@ func zipDirectory(destination io.Writer, sourceDirectory string) error {
 	return archive.Close()
 }
 
-func validateConfiguration(configuration generatorConfiguration) error {
-	appName := strings.TrimSpace(configuration.Project.AppName)
+func validateConfiguration(configuration GeneratorConfiguration) error {
+	project := configuration.Project
+	appName := strings.TrimSpace(project.AppName)
 	if appName == "" {
-		return fmt.Errorf("application name is required")
+		return errors.New("application name is required")
 	}
-	if appName == "." || appName == ".." || filepath.Base(appName) != appName || strings.ContainsAny(appName, `/\\`) {
-		return fmt.Errorf("invalid application name %q", configuration.Project.AppName)
+	if appName == "." || appName == ".." || filepath.Base(appName) != appName || strings.ContainsAny(appName, `/\`) {
+		return fmt.Errorf("invalid application name %q", project.AppName)
 	}
-	if strings.TrimSpace(configuration.Project.AppVersion) == "" {
-		return fmt.Errorf("application version is required")
+	if strings.TrimSpace(project.AppVersion) == "" {
+		return errors.New("application version is required")
 	}
-	if strings.TrimSpace(configuration.Project.GroupID) == "" {
-		return fmt.Errorf("group ID is required")
+	if strings.TrimSpace(project.GroupID) == "" {
+		return errors.New("group ID is required")
 	}
-	if strings.TrimSpace(configuration.Project.ArtifactID) == "" {
-		return fmt.Errorf("artifact ID is required")
+	if strings.TrimSpace(project.ArtifactID) == "" {
+		return errors.New("artifact ID is required")
 	}
-	if !javaPackagePattern.MatchString(strings.TrimSpace(configuration.Project.PackageName)) {
-		return fmt.Errorf("invalid Java package name %q", configuration.Project.PackageName)
+	if !javaPackagePattern.MatchString(strings.TrimSpace(project.PackageName)) {
+		return fmt.Errorf("invalid Java package name %q", project.PackageName)
 	}
-	if !contains([]string{"maven", "gradle"}, configuration.Project.BuildTool) {
-		return fmt.Errorf("unsupported build tool %q", configuration.Project.BuildTool)
+	if !slices.Contains([]BuildTool{BuildToolMaven, BuildToolGradle}, project.BuildTool) {
+		return fmt.Errorf("unsupported build tool %q", project.BuildTool)
 	}
-	if !contains([]string{"mise", "taskfile"}, configuration.Project.TaskRunner) {
-		return fmt.Errorf("unsupported task runner %q", configuration.Project.TaskRunner)
+	if !slices.Contains([]TaskRunner{TaskRunnerMise, TaskRunnerTaskfile}, project.TaskRunner) {
+		return fmt.Errorf("unsupported task runner %q", project.TaskRunner)
 	}
-	if !contains([]string{"none", "thymeleaf", "jte", "angular", "react"}, configuration.Frontend.Type) {
-		return fmt.Errorf("unsupported frontend type %q", configuration.Frontend.Type)
+
+	frontend := configuration.Frontend
+	if !slices.Contains([]FrontendType{FrontendNone, FrontendThymeleaf, FrontendJTE, FrontendAngular, FrontendReact}, frontend.Type) {
+		return fmt.Errorf("unsupported frontend type %q", frontend.Type)
 	}
-	if configuration.Frontend.HTMX && !isServerRendered(configuration.Frontend.Type) {
-		return fmt.Errorf("HTMX support requires the Thymeleaf or JTE frontend")
+	if frontend.HTMX && !isServerRendered(frontend.Type) {
+		return errors.New("HTMX support requires the Thymeleaf or JTE frontend")
 	}
-	if !contains([]string{"postgresql", "mysql", "mariadb"}, configuration.Database.Engine) {
-		return fmt.Errorf("unsupported database engine %q", configuration.Database.Engine)
+
+	database := configuration.Database
+	if !slices.Contains([]DatabaseEngine{DatabasePostgreSQL, DatabaseMySQL, DatabaseMariaDB}, database.Engine) {
+		return fmt.Errorf("unsupported database engine %q", database.Engine)
 	}
-	if !contains([]string{"flyway", "liquibase"}, configuration.Database.MigrationTool) {
-		return fmt.Errorf("unsupported migration tool %q", configuration.Database.MigrationTool)
+	if !slices.Contains([]MigrationTool{MigrationFlyway, MigrationLiquibase}, database.MigrationTool) {
+		return fmt.Errorf("unsupported migration tool %q", database.MigrationTool)
 	}
-	if !contains([]string{"spring-data-jpa", "spring-jdbc-client", "jooq"}, configuration.Database.PersistenceFramework) {
-		return fmt.Errorf("unsupported persistence framework %q", configuration.Database.PersistenceFramework)
+	if !slices.Contains([]PersistenceFramework{PersistenceSpringDataJPA, PersistenceSpringJdbcClient, PersistenceJOOQ}, database.PersistenceFramework) {
+		return fmt.Errorf("unsupported persistence framework %q", database.PersistenceFramework)
 	}
+
+	supportedFeatures := []Feature{FeatureEmail, FeatureSpringCloudAWS, FeatureRabbitMQ, FeatureRedisCaching, FeatureOpenTelemetry, FeatureKubernetes}
 	for _, feature := range configuration.Features {
-		if !contains([]string{"email", "spring-cloud-aws", "rabbitmq", "redis-caching", "opentelemetry", "kubernetes"}, feature) {
+		if !slices.Contains(supportedFeatures, feature) {
 			return fmt.Errorf("unsupported feature %q", feature)
 		}
 	}
@@ -284,8 +375,4 @@ func validateConfiguration(configuration generatorConfiguration) error {
 		}
 	}
 	return nil
-}
-
-func contains(values []string, target string) bool {
-	return slices.Contains(values, target)
 }

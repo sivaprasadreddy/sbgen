@@ -1,78 +1,35 @@
 package main
 
 import (
-	"embed"
-
 	"log"
 
-	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/egoist/mygo"
 )
 
-// Wails uses Go's `embed` package to embed the frontend files into the binary.
-// Any files in the frontend/dist folder will be embedded into the binary and
-// made available to the frontend.
-// See https://pkg.go.dev/embed for more information.
-
-//go:embed all:frontend/dist
-var assets embed.FS
-
-// appIconPath is the application icon inside the embedded frontend assets.
-// Setting it at runtime makes the macOS Dock show it even when LaunchServices
-// has a stale icon cached for the bundle.
-const appIconPath = "frontend/dist/sbgen.png"
-
-// main function serves as the application's entry point.
 func main() {
+	// AppGeneratorService's methods are callable from the frontend:
+	// `mygo generate` turns them into typed TypeScript functions in src/mygo.ts.
+	mygo.Bind(&AppGeneratorService{})
 
-	// Create a new Wails application by providing the necessary options.
-	// Variables 'Name' and 'Description' are for application metadata.
-	// 'Assets' configures the asset server with the 'FS' variable pointing to the frontend files.
-	// 'Bind' is a list of Go struct instances. The frontend has access to the methods of these instances.
-	// 'Mac' options tailor the application when running an macOS.
-	appIcon, err := assets.ReadFile(appIconPath)
-	if err != nil {
-		log.Printf("load application icon: %v", err)
-	}
-
-	app := application.New(application.Options{
-		Name:        "SBGen",
-		Description: "A Spring Boot Application Generator",
-		Icon:        appIcon,
-		Services: []application.Service{
-			application.NewService(&AppGeneratorService{}),
-		},
-		Assets: application.AssetOptions{
-			Handler: application.AssetFileServerFS(assets),
-		},
-		Mac: application.MacOptions{
-			ApplicationShouldTerminateAfterLastWindowClosed: true,
-		},
+	mygo.App.WhenReady(func() {
+		mygo.NewWindow(mygo.WindowOptions{
+			Title:     "SBGen",
+			Width:     1200,
+			Height:    800,
+			MinWidth:  640,
+			MinHeight: 560,
+			// The page's background in src/style.css.
+			BackgroundColor: "#f6f4fa",
+			// The page extends under the window buttons; the sidebar drags the window.
+			TitleBarStyle: mygo.TitleBarHiddenInset,
+			// Opens where the user left it last time.
+			StateKey: "main",
+			// The frontend: devUrl during `mygo dev`, frontendDist
+			// embedded by `mygo build` otherwise (see mygo.config.ts).
+			URL: "/",
+		})
 	})
-
-	// Create a new window with the necessary options.
-	// 'Title' is the title of the window.
-	// 'Mac' options tailor the window when running on macOS.
-	// 'BackgroundColour' is the background colour of the window.
-	// 'URL' is the URL that will be loaded into the webview.
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title: "SBGen",
-		// Window sized to the golden ratio (1000 / 618 ≈ 1.618).
-		Width:  1200,
-		Height: 800,
-		Mac: application.MacWindow{
-			InvisibleTitleBarHeight: 50,
-			Backdrop:                application.MacBackdropTranslucent,
-			TitleBar:                application.MacTitleBarHiddenInset,
-		},
-		BackgroundColour: application.NewRGB(246, 244, 250),
-		URL:              "/",
-	})
-
-	// Run the application. This blocks until the application has been exited.
-	err = app.Run()
-
-	// If an error occurred while running the application, log it and exit.
-	if err != nil {
+	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
