@@ -1,6 +1,5 @@
 [tools]
 go = "1.27.4"
-bun = "1.4.4"
 
 [tasks.default]
 description = "Run tests in short mode"
@@ -13,12 +12,12 @@ run = "go fmt ./..."
 [tasks.dev]
 description = "Run the app in development mode with hot reload (mygo dev)"
 raw = true
-run = "bun run dev"
+run = "go tool mygo dev"
 
 [tasks.build]
 description = "Build SBGen.app and a DMG into build/ (mygo build); pass e.g. -- -platform darwin/universal"
 depends = ["clean"]
-run = "bun run build"
+run = "go tool mygo build"
 
 [tasks.test]
 description = "Run tests in short mode (skips generating a full project)"
@@ -36,8 +35,8 @@ run = [
 ]
 
 [tasks.clean]
-description = "Remove build output (build/ and dist/)"
+description = "Remove build output (build/)"
 run = [
   "echo 'Cleaning...'",
-  "rm -rf build dist",
+  "rm -rf build",
 ]

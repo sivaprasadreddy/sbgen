@@ -27,15 +27,13 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Set the version from the tag
+        run: |
+          jq --arg version "${GITHUB_REF_NAME#v}" '.version = $version' mygo.json > mygo.json.tmp
+          mv mygo.json.tmp mygo.json
 
       - name: Package macOS app
-        run: |
-          export SBGEN_VERSION="${GITHUB_REF_NAME#v}"
-          bun run build -- -platform darwin/universal -skip-dmg
+        run: go tool mygo build -platform darwin/universal -skip-dmg
 
       - name: Archive app bundle
         run: |
