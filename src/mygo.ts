@@ -10,6 +10,21 @@ export type AIModel = "ollama" | "openai" | "anthropic";
 /** BuildTool is the build system of the generated project. */
 export type BuildTool = "maven" | "gradle";
 
+/** ConfirmOptions describes a confirmation dialog. */
+export interface ConfirmOptions {
+  /** Message is the question, e.g. "Delete “REST API”?". */
+  message: string;
+  /** Detail explains the consequence, below Message in a smaller font. */
+  detail?: string;
+  /** ConfirmLabel names the button that goes ahead, e.g. "Delete". */
+  confirmLabel: string;
+  /**
+   * Destructive marks an action that discards data. Its button is set apart,
+   * and Cancel answers both Enter and Escape.
+   */
+  destructive?: boolean;
+}
+
 /** DatabaseEngine is the database the generated project connects to. */
 export type DatabaseEngine = "postgresql" | "mysql" | "mariadb";
 
@@ -125,4 +140,13 @@ export const DefaultsService = {
   get: bind<[], ProjectDefaults>("DefaultsService.Get", () => []),
   /** Save stores defaults and returns them as saved. */
   save: bind<[ProjectDefaults], ProjectDefaults>("DefaultsService.Save", (defaults: ProjectDefaults) => [defaults]),
+} as const;
+
+/** DialogService shows native dialogs for the page. */
+export const DialogService = {
+  /**
+   * Confirm asks the user to confirm an action, as a sheet of the calling
+   * window on macOS, and reports whether they chose to go ahead.
+   */
+  confirm: bind<[ConfirmOptions], boolean>("DialogService.Confirm", (options: ConfirmOptions) => [options]),
 } as const;

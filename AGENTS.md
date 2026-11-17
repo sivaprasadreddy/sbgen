@@ -3,9 +3,10 @@
 ## Project Structure & Module Organization
 
 - SBGen is a [MyGo](https://mygo.run/) desktop application: a Go backend with a React/TypeScript frontend in a web view. The Go module is `github.com/sivaprasadreddy/sbgen`, all in `package main` at the repository root.
-- `main.go` binds the backend services (`AppGeneratorService`, `TemplateService`, `DefaultsService`) with `mygo.Bind` and opens the window in `mygo.App.WhenReady`.
+- `main.go` binds the backend services (`AppGeneratorService`, `TemplateService`, `DefaultsService`, `DialogService`) with `mygo.Bind` and opens the window in `mygo.App.WhenReady`.
 - `app_generator.go` holds `AppGeneratorService`. It validates the wizard's `GeneratorConfiguration`, maps it to a `progen` `springboot.ProjectConfig`, generates the project in a temporary directory and zips it into `~/Downloads`. Tests are in `app_generator_test.go`.
 - `defaults.go` holds `DefaultsService`, which keeps the Project step's defaults (`ProjectDefaults`: version, group ID, build tool, task runner) in `defaults.json` beside `templates.json`, returning the built-in defaults until the user saves. `storage.go` has the JSON read/atomic-write helpers both services use.
+- `dialogs.go` holds `DialogService.Confirm`, which shows `mygo.Dialog.Message` as a sheet of the calling window (`mygo.CallerWindow`). The frontend's `confirmAction` uses it, falling back to `window.confirm` outside a MyGo window. `ui.Modal` is for native UI and can't show over a web page.
 - `templates.go` holds `TemplateService`, which keeps the user's templates (named `GeneratorConfiguration`s) in `templates.json` in the user data directory (`mygo.PathUserData`). `Save` validates with `validateConfiguration` and rejects duplicate names. Tests in `templates_test.go` use a temporary directory.
 - `src/` is the frontend: `main.tsx`, the wizard in `App.tsx`, and `style.css`. Static assets (font, logo) are in `public/`.
 - `src/mygo.ts` is the typed TypeScript client that `mygo generate` writes from the bound Go services. `mygo dev` and `mygo build` regenerate it.

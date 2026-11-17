@@ -45,9 +45,14 @@ frontends (Thymeleaf, JTE) and JWT for REST API, Angular, and React applications
 3. **Frontend** – pick a frontend, and HTMX if you chose Thymeleaf or JTE.
 4. **Database** – pick the database, persistence framework, and migration tool.
 5. **Features** – select optional features and Spring AI model providers.
-6. **Review** – check your selections and click **Generate**.
+6. **Review** – check your selections and click **Generate**. You can change the application name, version,
+   Group ID, Artifact ID and package right here, including for a project started from a template. You can change the application name, version,
+   Group ID, Artifact ID and package right here, including for a project started from a template.
 7. The project is saved as `~/Downloads/<application-name>.zip` (a numeric suffix is added if the
    file already exists). Unzip it and follow the generated project's `README.md`.
+
+**Cancel**, on every step from **Project** to **Review**, asks for confirmation, then clears all your selections
+and returns to **Welcome**.
 
 ### Defaults
 
@@ -70,7 +75,8 @@ like any other.
   them all at any time; its **Back** button returns to the step you were on. Click a template to go
   straight to **Review**, and use **Back** to change any selection before you generate.
 - **Update or delete:** each template in either list has **Update**, which opens it at the **Project**
-  step so you can change its selections and save it again from **Review**, and **Delete**.
+  step so you can change its selections and save it again from **Review**, and **Delete**, which asks for
+  confirmation first.
 
 Templates are stored in `~/Library/Application Support/SBGen/templates.json`.
 
@@ -134,10 +140,11 @@ Apps you build yourself are signed locally (ad-hoc) and don't trigger the Gateke
 
 ### Project structure
 
-- `main.go` – binds `AppGeneratorService`, `TemplateService`, and `DefaultsService` and opens the application window.
+- `main.go` – binds `AppGeneratorService`, `TemplateService`, `DefaultsService`, and `DialogService` and opens the application window.
 - `app_generator.go` – `AppGeneratorService`, which validates the wizard's configuration,
   maps it to a progen `ProjectConfig`, generates the project, and zips it into `~/Downloads`.
 - `defaults.go` – `DefaultsService`, which stores the Project step's defaults in the app's user data directory.
+- `dialogs.go` – `DialogService`, which shows MyGo's native confirmation dialogs for the page.
 - `templates.go` – `TemplateService`, which lists, saves, and deletes templates in the app's user data directory.
 - `src/` – the React + TypeScript wizard UI. `src/mygo.ts` holds the typed TypeScript client that
   `mygo generate` creates from the Go service; `mygo dev` and `mygo build` regenerate it. Don't edit it.

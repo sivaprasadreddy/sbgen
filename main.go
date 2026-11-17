@@ -15,6 +15,7 @@ func main() {
 	userData := func() (string, error) { return mygo.App.Path(mygo.PathUserData) }
 	mygo.Bind(NewTemplateService(userData))
 	mygo.Bind(NewDefaultsService(userData))
+	mygo.Bind(NewDialogService())
 
 	mygo.App.WhenReady(func() {
 		mygo.NewWindow(mygo.WindowOptions{

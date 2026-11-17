@@ -1,10 +1,12 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 // Generated from the Go code by `mygo generate`.
 import {
   AppGeneratorService,
   DefaultsService,
+  DialogService,
   type AIModel,
   type BuildTool,
+  type ConfirmOptions,
   type DatabaseSettings,
   type Feature,
   type FrontendType as Frontend,
@@ -15,6 +17,7 @@ import {
   type Template,
   TemplateService,
 } from './mygo'
+import { isMyGo } from 'mygo-runtime'
 
 const authorUrl = 'https://sivalabs.in'
 const repositoryUrl = 'https://github.com/sivaprasadreddy/sbgen'
@@ -96,6 +99,24 @@ const metadataFromDefaults = (defaults: ProjectDefaults): ProjectMetadata => ({
   taskRunner: defaults.taskRunner,
 })
 
+// metadata with field changed. The package name follows the group and artifact IDs until the user customizes it.
+const withMetadataField = <K extends keyof ProjectMetadata>(current: ProjectMetadata, field: K, value: ProjectMetadata[K]): ProjectMetadata => {
+  const next = { ...current, [field]: value }
+  if ((field === 'groupId' || field === 'artifactId') && current.packageName === deriveBasePackage(current.groupId, current.artifactId)) {
+    next.packageName = deriveBasePackage(next.groupId, next.artifactId)
+  }
+  return next
+}
+
+// The Project fields the Review page can change, with their placeholders.
+const reviewProjectFields: ReadonlyArray<readonly [keyof ProjectMetadata, string, string]> = [
+  ['appName', 'Name', 'boot-demo'],
+  ['appVersion', 'Version', '1.0.0'],
+  ['groupId', 'Group ID', 'com.example'],
+  ['artifactId', 'Artifact ID', 'my-application'],
+  ['packageName', 'Package', 'com.example.demo'],
+]
+
 const sameMetadata = (a: ProjectMetadata, b: ProjectMetadata) =>
   (Object.keys(a) as (keyof ProjectMetadata)[]).every((key) => a[key] === b[key])
 
@@ -133,6 +154,19 @@ const initialDatabaseConfiguration: DatabaseConfiguration = {
 // The message of a rejected Go call (its error's text), or of any other failure.
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)
 
+// Asks the user to confirm with MyGo's native dialog, a sheet of the app's window. Outside a MyGo
+// window (the dev server in a browser tab), or if the dialog fails, it asks with the browser's confirm().
+const confirmAction = async (options: ConfirmOptions): Promise<boolean> => {
+  if (isMyGo()) {
+    try {
+      return await DialogService.confirm(options)
+    } catch (error) {
+      console.error('native confirmation dialog failed', error)
+    }
+  }
+  return window.confirm(options.detail ? `${options.message}\n\n${options.detail}` : options.message)
+}
+
 // A one-line description of a template's main choices, e.g. "Maven · JTE + HTMX · PostgreSQL · Spring Data JPA · 2 features".
 const templateSummary = ({ project, frontend, database, features, aiModels }: GeneratorConfiguration) => {
   const count = (n: number, noun: string) => n > 0 ? `${n} ${noun}${n === 1 ? '' : 's'}` : ''
@@ -165,7 +199,6 @@ function App() {
   const [templatesError, setTemplatesError] = useState('')
   // The template the current selection was loaded from or last saved as.
   const [activeTemplate, setActiveTemplate] = useState<Template | null>(null)
-  const [pendingDeleteId, setPendingDeleteId] = useState('')
   const [page, setPage] = useState<Page | null>(null)
   const [projectDefaults, setProjectDefaults] = useState<ProjectDefaults>(builtInDefaults)
   const [defaultsDraft, setDefaultsDraft] = useState<ProjectDefaults>(builtInDefaults)
@@ -204,15 +237,22 @@ function App() {
   }, [])
 
   const updateMetadata = <K extends keyof ProjectMetadata>(field: K, value: ProjectMetadata[K]) => {
-    setMetadata((current) => {
-      const next = { ...current, [field]: value }
-      // Keep the package name in sync with group/artifact IDs until the user customizes it.
-      if ((field === 'groupId' || field === 'artifactId') && current.packageName === deriveBasePackage(current.groupId, current.artifactId)) {
-        next.packageName = deriveBasePackage(next.groupId, next.artifactId)
-      }
-      return next
-    })
+    setMetadata((current) => withMetadataField(current, field, value))
   }
+
+  // Changes a confirmed Project field from the Review page. Generate and Save as template use the
+  // confirmed values; the Project step shows the same ones when the user goes back.
+  const reviewProjectForm = useRef<HTMLFormElement>(null)
+  const updateReviewMetadata = <K extends keyof ProjectMetadata>(field: K, value: ProjectMetadata[K]) => {
+    if (!savedMetadata) return
+    const next = withMetadataField(savedMetadata, field, value)
+    setSavedMetadata(next)
+    setMetadata(next)
+    setGenerationError('')
+  }
+
+  // Shows the browser's message on the first empty Review field, and reports whether all are filled in.
+  const reviewProjectValid = () => reviewProjectForm.current?.reportValidity() ?? true
 
   const handleProjectSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -290,13 +330,11 @@ function App() {
     setIsTemplatePanelOpen(false)
     setTemplateMessage(null)
     setGenerationError('')
-    setPendingDeleteId('')
     setPage(null)
     setActiveStep(step)
   }
 
   const openPage = (next: Page) => {
-    setPendingDeleteId('')
     if (next === 'templates') void refreshTemplates()
     if (next === 'defaults') {
       setDefaultsDraft(projectDefaults)
@@ -306,7 +344,6 @@ function App() {
   }
 
   const closePage = () => {
-    setPendingDeleteId('')
     setPage(null)
   }
 
@@ -352,15 +389,21 @@ function App() {
   const handleGetStarted = () => {
     // Starting without a template begins from the defaults, not from a template looked at earlier.
     if (activeTemplate) resetSelection()
-    setPendingDeleteId('')
     setActiveStep(1)
   }
 
   const handleDeleteTemplate = async (template: Template) => {
+    const confirmed = await confirmAction({
+      message: `Delete the template “${template.name}”?`,
+      detail: 'It is removed from your templates. This can’t be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!confirmed) return
     try {
       await TemplateService.delete(template.id)
       if (activeTemplate?.id === template.id) setActiveTemplate(null)
-      setPendingDeleteId('')
+      setTemplatesError('')
       await refreshTemplates()
     } catch (error) {
       setTemplatesError(`Could not delete “${template.name}”: ${errorMessage(error)}`)
@@ -370,7 +413,7 @@ function App() {
   // Saves the current selection as a new template, or over activeTemplate when update is true.
   const handleSaveTemplate = async (update: boolean) => {
     const configuration = currentConfiguration()
-    if (!configuration) return
+    if (!configuration || !reviewProjectValid()) return
     setIsSavingTemplate(true)
     setTemplateMessage(null)
     try {
@@ -393,7 +436,7 @@ function App() {
 
   const handleGenerate = async () => {
     const configuration = currentConfiguration()
-    if (!configuration) return
+    if (!configuration || !reviewProjectValid()) return
 
     setIsGenerating(true)
     setGenerationError('')
@@ -406,6 +449,21 @@ function App() {
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  // Cancel on steps 2–6: after the user confirms, drops every selection, including a loaded
+  // template, and returns to Welcome.
+  const handleCancel = async () => {
+    const confirmed = await confirmAction({
+      message: 'Discard this project’s selections?',
+      detail: 'Every choice you made for this project is cleared and you return to Welcome. Your templates and defaults are kept.',
+      confirmLabel: 'Discard',
+      destructive: true,
+    })
+    if (!confirmed) return
+    resetSelection()
+    setGenerationError('')
+    setActiveStep(0)
   }
 
   const handleStartNew = () => {
@@ -427,18 +485,10 @@ function App() {
             <strong>{template.name}</strong>
             <small>{templateSummary(template.configuration)}</small>
           </button>
-          {pendingDeleteId === template.id ? (
-            <div className="template-actions" role="group" aria-label={`Delete ${template.name}?`}>
-              <span>Delete?</span>
-              <button type="button" className="template-action danger" onClick={() => void handleDeleteTemplate(template)}>Delete</button>
-              <button type="button" className="template-action" onClick={() => setPendingDeleteId('')}>Cancel</button>
-            </div>
-          ) : (
-            <div className="template-actions">
-              <button type="button" className="template-action" onClick={() => applyTemplate(template, 1)} title="Change this template’s selections, starting from the Project step">Update</button>
-              <button type="button" className="template-action" onClick={() => setPendingDeleteId(template.id)}>Delete</button>
-            </div>
-          )}
+          <div className="template-actions">
+            <button type="button" className="template-action" onClick={() => applyTemplate(template, 1)} title="Change this template’s selections, starting from the Project step">Update</button>
+            <button type="button" className="template-action" onClick={() => void handleDeleteTemplate(template)}>Delete</button>
+          </div>
         </li>
       ))}
     </ul>
@@ -660,6 +710,7 @@ function App() {
             </fieldset>
 
             <div className="form-actions">
+              <button type="button" className="back-button cancel-button" onClick={() => void handleCancel()} title="Clear all selections and return to Welcome">Cancel</button>
               <button type="button" className="back-button" onClick={() => setActiveStep(0)}>Back</button>
               <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
             </div>
@@ -716,6 +767,7 @@ function App() {
             )}
 
             <div className="form-actions">
+              <button type="button" className="back-button cancel-button" onClick={() => void handleCancel()} title="Clear all selections and return to Welcome">Cancel</button>
               <button type="button" className="back-button" onClick={() => setActiveStep(1)}>Back</button>
               <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
             </div>
@@ -778,6 +830,7 @@ function App() {
             </fieldset>
 
             <div className="form-actions">
+              <button type="button" className="back-button cancel-button" onClick={() => void handleCancel()} title="Clear all selections and return to Welcome">Cancel</button>
               <button type="button" className="back-button" onClick={() => setActiveStep(2)}>Back</button>
               <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
             </div>
@@ -823,6 +876,7 @@ function App() {
             </fieldset>
 
             <div className="form-actions">
+              <button type="button" className="back-button cancel-button" onClick={() => void handleCancel()} title="Clear all selections and return to Welcome">Cancel</button>
               <button type="button" className="back-button" onClick={() => setActiveStep(3)}>Back</button>
               <button type="submit" className="next-button">Next <span aria-hidden="true">→</span></button>
             </div>
@@ -834,19 +888,34 @@ function App() {
             <div className="form-heading">
               <p className="eyebrow">Step 6 of 7</p>
               <h1>Review</h1>
-              <p>Review your selections before downloading the project configuration.</p>
+              <p>Review your selections and adjust the project’s name and coordinates before generating it.</p>
               {activeTemplate && <p className="template-origin">From template <strong>{activeTemplate.name}</strong></p>}
             </div>
 
             <div className="review-grid">
               <section className="review-section review-project">
                 <h2>Project</h2>
+                <form ref={reviewProjectForm} className="review-project-fields" onSubmit={(event) => event.preventDefault()}>
+                  <dl>
+                    {reviewProjectFields.map(([field, label, placeholder]) => (
+                      <div key={field}>
+                        <dt><label htmlFor={`review-${field}`}>{label}</label></dt>
+                        <dd>
+                          <input
+                            id={`review-${field}`}
+                            required
+                            value={savedMetadata[field]}
+                            onChange={(event) => updateReviewMetadata(field, event.target.value)}
+                            placeholder={placeholder}
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </form>
                 <dl>
-                  <div><dt>Name</dt><dd>{savedMetadata.appName}</dd></div>
-                  <div><dt>Version</dt><dd>{savedMetadata.appVersion}</dd></div>
-                  <div><dt>Group ID</dt><dd>{savedMetadata.groupId}</dd></div>
-                  <div><dt>Artifact ID</dt><dd>{savedMetadata.artifactId}</dd></div>
-                  <div><dt>Package</dt><dd>{savedMetadata.packageName}</dd></div>
                   <div><dt>Build Tool</dt><dd>{labels[savedMetadata.buildTool]}</dd></div>
                   <div><dt>Task Runner</dt><dd>{labels[savedMetadata.taskRunner]}</dd></div>
                 </dl>
@@ -917,6 +986,7 @@ function App() {
 
             {generationError && <p className="generation-error" role="alert">{generationError}</p>}
             <div className="form-actions">
+              <button type="button" className="back-button cancel-button" onClick={() => void handleCancel()} disabled={isGenerating} title="Clear all selections and return to Welcome">Cancel</button>
               <button
                 type="button"
                 className="back-button template-toggle"
