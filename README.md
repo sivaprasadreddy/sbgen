@@ -49,6 +49,23 @@ frontends (Thymeleaf, JTE) and JWT for REST API, Angular, and React applications
 7. The project is saved as `~/Downloads/<application-name>.zip` (a numeric suffix is added if the
    file already exists). Unzip it and follow the generated project's `README.md`.
 
+### Templates
+
+A template is a saved selection of every step's options, so you can reuse a combination you
+generate often. SBGen comes with three, all using Maven, Mise, PostgreSQL, Flyway and Spring Data JPA:
+**REST API** (no frontend), **Thymeleaf + HTMX**, and **Angular**. They are yours to update or delete
+like any other.
+
+- **Save:** on the **Review** step, click **Save as template**, give it a name and click **Save template**.
+  If you started from a template, you can **Update** that template or **Save as new**.
+- **Use:** the **Welcome** step lists your templates, and the **Templates** link below the steps shows
+  them all at any time; its **Back** button returns to the step you were on. Click a template to go
+  straight to **Review**, and use **Back** to change any selection before you generate.
+- **Update or delete:** each template in either list has **Update**, which opens it at the **Project**
+  step so you can change its selections and save it again from **Review**, and **Delete**.
+
+Templates are stored in `~/Library/Application Support/SBGen/templates.json`.
+
 ## Allowing the app to run on macOS
 
 SBGen releases are not signed with an Apple Developer ID or notarized by Apple, so macOS Gatekeeper
@@ -109,9 +126,10 @@ Apps you build yourself are signed locally (ad-hoc) and don't trigger the Gateke
 
 ### Project structure
 
-- `main.go` – binds `AppGeneratorService` and opens the application window.
+- `main.go` – binds `AppGeneratorService` and `TemplateService` and opens the application window.
 - `app_generator.go` – `AppGeneratorService`, which validates the wizard's configuration,
   maps it to a progen `ProjectConfig`, generates the project, and zips it into `~/Downloads`.
+- `templates.go` – `TemplateService`, which lists, saves, and deletes templates in the app's user data directory.
 - `src/` – the React + TypeScript wizard UI. `src/mygo.ts` holds the typed TypeScript client that
   `mygo generate` creates from the Go service; `mygo dev` and `mygo build` regenerate it. Don't edit it.
 - `public/` – static assets served with the UI (font, logo).

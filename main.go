@@ -10,6 +10,11 @@ func main() {
 	// AppGeneratorService's methods are callable from the frontend:
 	// `mygo generate` turns them into typed TypeScript functions in src/mygo.ts.
 	mygo.Bind(&AppGeneratorService{})
+	// Templates live in the user data directory, e.g.
+	// ~/Library/Application Support/SBGen/templates.json.
+	mygo.Bind(NewTemplateService(func() (string, error) {
+		return mygo.App.Path(mygo.PathUserData)
+	}))
 
 	mygo.App.WhenReady(func() {
 		mygo.NewWindow(mygo.WindowOptions{

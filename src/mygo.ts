@@ -61,6 +61,14 @@ export interface ProjectSettings {
 /** TaskRunner runs the generated project's common tasks. */
 export type TaskRunner = "mise" | "taskfile";
 
+/** Template is a named, saved selection of the wizard's options. */
+export interface Template {
+  id: string;
+  name: string;
+  configuration: GeneratorConfiguration;
+  updatedAt: string;
+}
+
 // ---- Services ----
 
 /** AppGeneratorService generates Spring Boot projects. */
@@ -71,4 +79,28 @@ export const AppGeneratorService = {
    * archive's path.
    */
   generateProject: bind<[GeneratorConfiguration], string>("AppGeneratorService.GenerateProject", (configuration: GeneratorConfiguration) => [configuration]),
+} as const;
+
+/**
+ * TemplateService stores the user's templates in templates.json in a
+ * directory of its own, the app's user data directory.
+ */
+export const TemplateService = {
+  /**
+   * Delete removes the template with id. Deleting a template that no longer
+   * exists is not an error.
+   */
+  delete: bind<[string], void>("TemplateService.Delete", (id: string) => [id]),
+  /**
+   * List returns the saved templates in the order they were saved: the starter
+   * templates until the user first saves or deletes one. Updating a template
+   * keeps its place; new templates go at the end.
+   */
+  list: bind<[], Template[]>("TemplateService.List", () => []),
+  /**
+   * Save stores template and returns it as saved. A template without an ID is
+   * added as a new template; one with an ID replaces the saved template of
+   * that ID. Names are unique, ignoring case.
+   */
+  save: bind<[Template], Template>("TemplateService.Save", (template: Template) => [template]),
 } as const;

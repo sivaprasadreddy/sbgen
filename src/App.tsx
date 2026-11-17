@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 // Generated from the Go code by `mygo generate`.
 import {
   AppGeneratorService,
@@ -8,6 +8,8 @@ import {
   type FrontendType as Frontend,
   type GeneratorConfiguration,
   type ProjectSettings,
+  type Template,
+  TemplateService,
 } from './mygo'
 
 const authorUrl = 'https://sivalabs.in'
@@ -99,6 +101,22 @@ const initialDatabaseConfiguration: DatabaseConfiguration = {
   persistenceFramework: 'spring-data-jpa',
 }
 
+// The message of a rejected Go call (its error's text), or of any other failure.
+const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)
+
+// A one-line description of a template's main choices, e.g. "Maven · JTE + HTMX · PostgreSQL · Spring Data JPA · 2 features".
+const templateSummary = ({ project, frontend, database, features, aiModels }: GeneratorConfiguration) => {
+  const count = (n: number, noun: string) => n > 0 ? `${n} ${noun}${n === 1 ? '' : 's'}` : ''
+  return [
+    labels[project.buildTool],
+    frontend.type === 'none' ? 'REST API' : labels[frontend.type] + (frontend.htmxSupport ? ' + HTMX' : ''),
+    labels[database.engine],
+    labels[database.persistenceFramework],
+    count(features.length, 'feature'),
+    count(aiModels.length, 'AI model'),
+  ].filter(Boolean).join(' · ')
+}
+
 function App() {
   const [activeStep, setActiveStep] = useState(0)
   const [metadata, setMetadata] = useState<ProjectMetadata>(initialMetadata)
@@ -114,6 +132,30 @@ function App() {
   const [downloadedFilePath, setDownloadedFilePath] = useState('')
   const [generationError, setGenerationError] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [templatesError, setTemplatesError] = useState('')
+  // The template the current selection was loaded from or last saved as.
+  const [activeTemplate, setActiveTemplate] = useState<Template | null>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState('')
+  // The Templates page shows instead of the current step, which it returns to.
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [isTemplatePanelOpen, setIsTemplatePanelOpen] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateMessage, setTemplateMessage] = useState<{ kind: 'success' | 'error', text: string } | null>(null)
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false)
+
+  const refreshTemplates = async () => {
+    try {
+      setTemplates(await TemplateService.list())
+      setTemplatesError('')
+    } catch (error) {
+      setTemplatesError(`Could not load templates: ${errorMessage(error)}`)
+    }
+  }
+
+  useEffect(() => {
+    void refreshTemplates()
+  }, [])
 
   const updateMetadata = <K extends keyof ProjectMetadata>(field: K, value: ProjectMetadata[K]) => {
     setMetadata((current) => {
@@ -167,10 +209,10 @@ function App() {
     setActiveStep(5)
   }
 
-  const handleGenerate = async () => {
-    if (!savedMetadata || !savedFrontend || !savedDatabase || !savedFeatures || !savedAIModels) return
-
-    const configuration: GeneratorConfiguration = {
+  // The selection confirmed in steps 2–5, or null until all of them are.
+  const currentConfiguration = (): GeneratorConfiguration | null => {
+    if (!savedMetadata || !savedFrontend || !savedDatabase || !savedFeatures || !savedAIModels) return null
+    return {
       project: savedMetadata,
       frontend: {
         type: savedFrontend.frontend,
@@ -180,21 +222,45 @@ function App() {
       features: savedFeatures,
       aiModels: savedAIModels,
     }
-
-    setIsGenerating(true)
-    setGenerationError('')
-    try {
-      const filePath = await AppGeneratorService.generateProject(configuration)
-      setDownloadedFilePath(filePath)
-      setActiveStep(6)
-    } catch (error) {
-      setGenerationError(error instanceof Error ? error.message : String(error))
-    } finally {
-      setIsGenerating(false)
-    }
   }
 
-  const handleStartNew = () => {
+  // Loads a template's selection into every step, then shows the given step.
+  const applyTemplate = (template: Template, step: number) => {
+    const { project, frontend: frontendSettings, database: databaseSettings, features: templateFeatures, aiModels: templateAIModels } = template.configuration
+    const frontendConfiguration = { frontend: frontendSettings.type, htmxSupport: frontendSettings.htmxSupport }
+    const orderedAIModels = aiModelOptions.map(([value]) => value).filter((model) => templateAIModels.includes(model))
+    setMetadata({ ...project })
+    setSavedMetadata({ ...project })
+    setFrontend(frontendConfiguration)
+    setSavedFrontend(frontendConfiguration)
+    setDatabase({ ...databaseSettings })
+    setSavedDatabase({ ...databaseSettings })
+    setFeatures([...templateFeatures])
+    setSavedFeatures([...templateFeatures])
+    setAIModels(orderedAIModels)
+    setSavedAIModels(orderedAIModels)
+    setActiveTemplate(template)
+    setTemplateName(template.name)
+    setIsTemplatePanelOpen(false)
+    setTemplateMessage(null)
+    setGenerationError('')
+    setPendingDeleteId('')
+    setShowTemplates(false)
+    setActiveStep(step)
+  }
+
+  const openTemplates = () => {
+    setPendingDeleteId('')
+    setShowTemplates(true)
+    void refreshTemplates()
+  }
+
+  const closeTemplates = () => {
+    setPendingDeleteId('')
+    setShowTemplates(false)
+  }
+
+  const resetSelection = () => {
     setMetadata(initialMetadata)
     setSavedMetadata(null)
     setFrontend(initialFrontendConfiguration)
@@ -205,11 +271,106 @@ function App() {
     setSavedFeatures(null)
     setAIModels([])
     setSavedAIModels(null)
+    setActiveTemplate(null)
+    setTemplateName('')
+    setIsTemplatePanelOpen(false)
+    setTemplateMessage(null)
+  }
+
+  const handleGetStarted = () => {
+    // Starting without a template begins from the defaults, not from a template looked at earlier.
+    if (activeTemplate) resetSelection()
+    setPendingDeleteId('')
+    setActiveStep(1)
+  }
+
+  const handleDeleteTemplate = async (template: Template) => {
+    try {
+      await TemplateService.delete(template.id)
+      if (activeTemplate?.id === template.id) setActiveTemplate(null)
+      setPendingDeleteId('')
+      await refreshTemplates()
+    } catch (error) {
+      setTemplatesError(`Could not delete “${template.name}”: ${errorMessage(error)}`)
+    }
+  }
+
+  // Saves the current selection as a new template, or over activeTemplate when update is true.
+  const handleSaveTemplate = async (update: boolean) => {
+    const configuration = currentConfiguration()
+    if (!configuration) return
+    setIsSavingTemplate(true)
+    setTemplateMessage(null)
+    try {
+      const saved = await TemplateService.save({
+        id: update && activeTemplate ? activeTemplate.id : '',
+        name: templateName,
+        configuration,
+        updatedAt: new Date().toISOString(),
+      })
+      setActiveTemplate(saved)
+      setTemplateName(saved.name)
+      setTemplateMessage({ kind: 'success', text: update ? `Updated template “${saved.name}”.` : `Saved template “${saved.name}”.` })
+      await refreshTemplates()
+    } catch (error) {
+      setTemplateMessage({ kind: 'error', text: errorMessage(error) })
+    } finally {
+      setIsSavingTemplate(false)
+    }
+  }
+
+  const handleGenerate = async () => {
+    const configuration = currentConfiguration()
+    if (!configuration) return
+
+    setIsGenerating(true)
+    setGenerationError('')
+    try {
+      const filePath = await AppGeneratorService.generateProject(configuration)
+      setDownloadedFilePath(filePath)
+      setActiveStep(6)
+    } catch (error) {
+      setGenerationError(errorMessage(error))
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const handleStartNew = () => {
+    resetSelection()
     setDownloadedFilePath('')
     setGenerationError('')
     setIsGenerating(false)
     setActiveStep(0)
   }
+
+  const shownStep = showTemplates ? -1 : activeStep
+
+  // The templates with their Update and Delete actions, on the Welcome step and the Templates page.
+  const renderTemplateList = () => (
+    <ul className="template-items">
+      {templates.map((template) => (
+        <li key={template.id}>
+          <button type="button" className="template-open" onClick={() => applyTemplate(template, 5)} title={`Review “${template.name}”`}>
+            <strong>{template.name}</strong>
+            <small>{templateSummary(template.configuration)}</small>
+          </button>
+          {pendingDeleteId === template.id ? (
+            <div className="template-actions" role="group" aria-label={`Delete ${template.name}?`}>
+              <span>Delete?</span>
+              <button type="button" className="template-action danger" onClick={() => void handleDeleteTemplate(template)}>Delete</button>
+              <button type="button" className="template-action" onClick={() => setPendingDeleteId('')}>Cancel</button>
+            </div>
+          ) : (
+            <div className="template-actions">
+              <button type="button" className="template-action" onClick={() => applyTemplate(template, 1)} title="Change this template’s selections, starting from the Project step">Update</button>
+              <button type="button" className="template-action" onClick={() => setPendingDeleteId(template.id)}>Delete</button>
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
 
   return (
     <main className="generator-shell">
@@ -222,12 +383,29 @@ function App() {
           {steps.map((step, index) => {
             const isComplete = index < activeStep || (index === activeStep && index === steps.length - 1 && Boolean(downloadedFilePath))
             return (
-              <li className={isComplete ? 'complete' : index === activeStep ? 'active' : ''} key={step} aria-current={index === activeStep && !isComplete ? 'step' : undefined}>
+              <li className={isComplete ? 'complete' : index === shownStep ? 'active' : ''} key={step} aria-current={index === shownStep && !isComplete ? 'step' : undefined}>
                 <span className="step-number">{isComplete ? '✓' : index + 1}</span><span>{step}</span>
               </li>
             )
           })}
         </ol>
+        <hr className="sidebar-separator" />
+        <nav aria-label="Library">
+          <button
+            type="button"
+            className={`sidebar-link${showTemplates ? ' active' : ''}`}
+            aria-current={showTemplates ? 'page' : undefined}
+            onClick={showTemplates ? closeTemplates : openTemplates}
+            disabled={isGenerating}
+            title="Show all templates"
+          >
+            <span className="step-number" aria-hidden="true">
+              <svg viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h6" /></svg>
+            </span>
+            <span className="sidebar-link-label">Templates</span>
+            {templates.length > 0 && <span className="sidebar-count">{templates.length}</span>}
+          </button>
+        </nav>
         <footer className="sidebar-footer">
           {/* target="_blank" links open in the default browser, not the app's window. */}
           <p>Author: <a href={authorUrl} target="_blank" rel="noreferrer">SivaLabs</a></p>
@@ -236,17 +414,42 @@ function App() {
       </aside>
 
       <section className="content-panel">
-        {activeStep === 0 && (
+        {shownStep === 0 && (
           <div className="welcome-content" aria-labelledby="welcome-title">
             <div className="welcome-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7 16.5 13 22l12-13" /></svg></div>
             <p className="eyebrow">Welcome</p>
             <h1 id="welcome-title">Build production-ready<br />Spring Boot applications</h1>
             <p className="description">Create a thoughtfully structured Spring Boot project with sensible defaults and the dependencies your application needs—all through one simple, guided setup.</p>
-            <button type="button" className="continue-button" onClick={() => setActiveStep(1)}>Get started</button>
+            <button type="button" className="continue-button" onClick={handleGetStarted}>Get started</button>
+
+            {templatesError && <p className="generation-error templates-error" role="alert">{templatesError}</p>}
+            {templates.length > 0 && (
+              <section className="template-list" aria-labelledby="templates-title">
+                <h2 id="templates-title">Or start from a template</h2>
+                {renderTemplateList()}
+              </section>
+            )}
           </div>
         )}
 
-        {activeStep === 1 && (
+        {showTemplates && (
+          <div className="project-form templates-page" aria-labelledby="templates-page-title">
+            <div className="form-heading">
+              <p className="eyebrow">{templates.length === 1 ? '1 template' : `${templates.length} templates`}</p>
+              <h1 id="templates-page-title">Templates</h1>
+              <p>Start a project from a saved selection, or update and delete your templates. Save new ones from the Review step.</p>
+            </div>
+            {templatesError && <p className="generation-error templates-error" role="alert">{templatesError}</p>}
+            {templates.length > 0
+              ? renderTemplateList()
+              : <p className="templates-empty">No templates yet. Make your selections, then use <strong>Save as template</strong> on the Review step.</p>}
+            <div className="form-actions">
+              <button type="button" className="back-button" onClick={closeTemplates}>Back to {steps[activeStep]}</button>
+            </div>
+          </div>
+        )}
+
+        {shownStep === 1 && (
           <form className="project-form" onSubmit={handleProjectSubmit}>
             <div className="form-heading">
               <p className="eyebrow">Step 2 of 7</p>
@@ -319,7 +522,7 @@ function App() {
           </form>
         )}
 
-        {activeStep === 2 && savedMetadata && (
+        {shownStep === 2 && savedMetadata && (
           <form className="project-form frontend-form" onSubmit={handleFrontendSubmit}>
             <div className="form-heading">
               <p className="eyebrow">Step 3 of 7</p>
@@ -375,7 +578,7 @@ function App() {
           </form>
         )}
 
-        {activeStep === 3 && savedMetadata && savedFrontend && (
+        {shownStep === 3 && savedMetadata && savedFrontend && (
           <form className="project-form database-form" onSubmit={handleDatabaseSubmit}>
             <div className="form-heading">
               <p className="eyebrow">Step 4 of 7</p>
@@ -437,7 +640,7 @@ function App() {
           </form>
         )}
 
-        {activeStep === 4 && savedDatabase && (
+        {shownStep === 4 && savedDatabase && (
           <form className="project-form features-form" onSubmit={handleFeaturesSubmit}>
             <div className="form-heading">
               <p className="eyebrow">Step 5 of 7</p>
@@ -482,12 +685,13 @@ function App() {
           </form>
         )}
 
-        {activeStep === 5 && savedMetadata && savedFrontend && savedDatabase && savedFeatures && savedAIModels && (
+        {shownStep === 5 && savedMetadata && savedFrontend && savedDatabase && savedFeatures && savedAIModels && (
           <div className="project-form review-form">
             <div className="form-heading">
               <p className="eyebrow">Step 6 of 7</p>
               <h1>Review</h1>
               <p>Review your selections before downloading the project configuration.</p>
+              {activeTemplate && <p className="template-origin">From template <strong>{activeTemplate.name}</strong></p>}
             </div>
 
             <div className="review-grid">
@@ -540,15 +744,66 @@ function App() {
               </section>
             </div>
 
+            {isTemplatePanelOpen && (
+              <form
+                className="template-panel"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void handleSaveTemplate(Boolean(activeTemplate))
+                }}
+              >
+                <label className="field">
+                  <span>Template Name</span>
+                  <input required autoFocus value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="e.g. JTE + PostgreSQL" autoComplete="off" />
+                  <small>Saved templates are listed on the Welcome step.</small>
+                </label>
+                <div className="template-panel-actions">
+                  {activeTemplate ? (
+                    <>
+                      <button type="submit" className="next-button" disabled={isSavingTemplate}>Update “{activeTemplate.name}”</button>
+                      <button type="button" className="back-button" disabled={isSavingTemplate} onClick={() => void handleSaveTemplate(false)}>Save as new</button>
+                    </>
+                  ) : (
+                    <button type="submit" className="next-button" disabled={isSavingTemplate}>Save template</button>
+                  )}
+                </div>
+                {templateMessage && <p className={`template-message ${templateMessage.kind}`} role={templateMessage.kind === 'error' ? 'alert' : 'status'}>{templateMessage.text}</p>}
+              </form>
+            )}
+
             {generationError && <p className="generation-error" role="alert">{generationError}</p>}
             <div className="form-actions">
-              <button type="button" className="back-button" onClick={() => setActiveStep(4)} disabled={isGenerating}>Back</button>
+              <button
+                type="button"
+                className="back-button template-toggle"
+                aria-expanded={isTemplatePanelOpen}
+                onClick={() => {
+                  setIsTemplatePanelOpen((open) => !open)
+                  setTemplateMessage(null)
+                }}
+                disabled={isGenerating}
+              >
+                {isTemplatePanelOpen ? 'Close' : 'Save as template'}
+              </button>
+              <button
+                type="button"
+                className="back-button"
+                onClick={() => {
+                  // A message about the selection goes stale once the selection can change.
+                  setIsTemplatePanelOpen(false)
+                  setTemplateMessage(null)
+                  setActiveStep(4)
+                }}
+                disabled={isGenerating}
+              >
+                Back
+              </button>
               <button type="button" className="next-button generate-button" onClick={handleGenerate} disabled={isGenerating}>{isGenerating ? 'Generating…' : 'Generate'} <span aria-hidden="true">↓</span></button>
             </div>
           </div>
         )}
 
-        {activeStep === 6 && downloadedFilePath && (
+        {shownStep === 6 && downloadedFilePath && (
           <div className="complete-step">
             <div className="welcome-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7 16.5 13 22l12-13" /></svg></div>
             <p className="eyebrow">Complete</p>
