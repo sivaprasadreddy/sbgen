@@ -1,5 +1,10 @@
 # SBGen
 
+> [!IMPORTANT]
+> This project has been merged into [progen](https://github.com/sivaprasadreddy/progen).
+> Please use progen for the latest features and updates. This repository is no longer actively maintained.
+
+
 SBGen is a macOS desktop app for generating production-ready Spring Boot applications.
 A step-by-step wizard walks you through the options; the generated project is saved to your
 `~/Downloads` folder as a ZIP archive.
