@@ -1,3 +1,4 @@
+// Command sbgen is SBGen, a desktop app that generates Spring Boot projects.
 package main
 
 import (
@@ -5,6 +6,10 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+
+	"github.com/sivaprasadreddy/sbgen/internal/app"
+	"github.com/sivaprasadreddy/sbgen/internal/generator"
+	"github.com/sivaprasadreddy/sbgen/internal/store"
 )
 
 func main() {
@@ -22,7 +27,7 @@ func main() {
 				win.Update(apply)
 			}()
 		}
-		app := newWizard(NewTemplateService(userData), NewDefaultsService(userData), (&AppGeneratorService{}).GenerateProject, async)
+		wizard := app.NewWizard(store.NewTemplateService(userData), store.NewDefaultsService(userData), (&generator.Service{}).GenerateProject, async)
 		win = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "SBGen",
 			Width:     1200,
@@ -34,7 +39,7 @@ func main() {
 			// Opens where the user left it last time.
 			StateKey: "main",
 			// The window shows the interface MyGo draws, not a web page.
-			Content: ui.View(app.view),
+			Content: ui.View(wizard.View),
 		})
 	})
 	if err := mygo.App.Run(); err != nil {

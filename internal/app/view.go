@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"fmt"
@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/sivaprasadreddy/sbgen/internal/config"
+	"github.com/sivaprasadreddy/sbgen/internal/store"
 )
 
 const (
@@ -13,9 +15,9 @@ const (
 	repositoryURL = "https://github.com/sivaprasadreddy/sbgen"
 )
 
-// view builds the window: the sidebar beside the current step or page, and
+// View builds the window: the sidebar beside the current step or page, and
 // the confirmation alerts over them.
-func (w *wizard) view(c *ui.Context) {
+func (w *Wizard) View(c *ui.Context) {
 	c.SetTheme(theme(c))
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
 		w.sidebar(c)
@@ -40,7 +42,7 @@ func alertTheme(c *ui.Context) *ui.Theme {
 	return theme(c).WithAccent(accent)
 }
 
-func (w *wizard) alerts(c *ui.Context) {
+func (w *Wizard) alerts(c *ui.Context) {
 	switch ui.AlertDialog(c, &w.confirmingCancel, "Discard this project’s selections?",
 		"Every choice you made for this project is cleared and you return to Welcome. Your templates and defaults are kept.",
 		"Discard", "Cancel") {
@@ -60,7 +62,7 @@ func (w *wizard) alerts(c *ui.Context) {
 	}
 }
 
-func (w *wizard) content(c *ui.Context) {
+func (w *Wizard) content(c *ui.Context) {
 	switch {
 	case w.page == pageTemplates:
 		w.templatesPage(c)
@@ -85,7 +87,7 @@ func (w *wizard) content(c *ui.Context) {
 
 // sidebar is the column of steps on the gradient, with the Defaults and
 // Templates links and the author, which drags the window.
-func (w *wizard) sidebar(c *ui.Context) {
+func (w *Wizard) sidebar(c *ui.Context) {
 	side := ui.Column(c).Width(192).Shrink(0).Padding(52, 17, 20, 17).DragWindow()
 	side.LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
 		{Color: ui.Hex("#b9c3e2"), At: 0}, {Color: ui.Hex("#b9b9e9"), At: 0.35}, {Color: ui.Hex("#efb5d2"), At: 0.7}, {Color: ui.Hex("#d7bdd7"), At: 1},
@@ -120,7 +122,7 @@ func (w *wizard) sidebar(c *ui.Context) {
 	})
 }
 
-func (w *wizard) stepItem(c *ui.Context, index int, name string, complete, active bool) {
+func (w *Wizard) stepItem(c *ui.Context, index int, name string, complete, active bool) {
 	row := ui.Row(c.Key("step:"+name)).Height(50).Gap(13).Padding(0, 14).Radius(9)
 	text, numberText, numberFill := ui.Hex("#445064"), ui.Hex("#485164"), ui.RGBA(222, 228, 236, 0.86)
 	switch {
@@ -143,7 +145,7 @@ func (w *wizard) stepItem(c *ui.Context, index int, name string, complete, activ
 }
 
 // sidebarLink opens a page in place of the step, or closes it again.
-func (w *wizard) sidebarLink(c *ui.Context, p page, icon *ui.SVG, name string, count int) ui.Element {
+func (w *Wizard) sidebarLink(c *ui.Context, p page, icon *ui.SVG, name string, count int) ui.Element {
 	active := w.page == p
 	link := ui.ButtonBase(c.Key("link:"+name)).Label(name).Disabled(w.generating).Height(50).Gap(13).
 		Padding(0, 6, 0, 14).Radius(9).Justify(ui.Start).Cursor(ui.CursorPointer)
@@ -187,7 +189,7 @@ func footerLink(c *ui.Context, label, url string) {
 
 // welcome is the first screen: the app's pitch, Get started, and the
 // templates to start from.
-func (w *wizard) welcome(c *ui.Context) {
+func (w *Wizard) welcome(c *ui.Context) {
 	width, _ := c.Size()
 	ui.Column(c).WidthPercent(78).MaxWidth(560).AlignItems(ui.Center).Padding(38, 0, 0, 0).Children(func() {
 		successIcon(c)
@@ -223,7 +225,7 @@ func clamp(v, low, high float32) float32 {
 
 // templateItems lists the templates, each opening at Review, with Update
 // and Delete.
-func (w *wizard) templateItems(c *ui.Context) {
+func (w *Wizard) templateItems(c *ui.Context) {
 	ui.Column(c).Gap(10).Children(func() {
 		for _, t := range w.templateList {
 			row := ui.Row(c.Key(t.ID)).Gap(12).Padding(6, 12, 6, 6).Radius(12)
@@ -255,7 +257,7 @@ func (w *wizard) templateItems(c *ui.Context) {
 }
 
 // cancelButton asks before it discards the selection.
-func (w *wizard) cancelButton(c *ui.Context) {
+func (w *Wizard) cancelButton(c *ui.Context) {
 	b := secondaryButton(c, "Cancel", w.generating).Tooltip("Clear all selections and return to Welcome")
 	if b.Clicked() {
 		w.confirmingCancel = true
@@ -263,7 +265,7 @@ func (w *wizard) cancelButton(c *ui.Context) {
 }
 
 // stepActions is Cancel, Back and Next, at the foot of steps 2 to 5.
-func (w *wizard) stepActions(c *ui.Context) {
+func (w *Wizard) stepActions(c *ui.Context) {
 	formActions(c, func() { w.cancelButton(c) }, func() {
 		if secondaryButton(c, "Back", false).Clicked() {
 			w.back()
@@ -274,7 +276,7 @@ func (w *wizard) stepActions(c *ui.Context) {
 	})
 }
 
-func (w *wizard) projectStep(c *ui.Context) {
+func (w *Wizard) projectStep(c *ui.Context) {
 	p := w.selection.Project
 	formCard(c, func() {
 		formHeading(c, "Step 2 of 7", "Project Metadata", func() {
@@ -289,24 +291,24 @@ func (w *wizard) projectStep(c *ui.Context) {
 		})
 		optionGroup(c, "Build Tool", false, func() {
 			for _, o := range buildToolOptions {
-				radioCard(c.Key(o.value), p.BuildTool, o, func(v BuildTool) { w.selection.Project.BuildTool = v })
+				radioCard(c.Key(o.value), p.BuildTool, o, func(v config.BuildTool) { w.selection.Project.BuildTool = v })
 			}
 		})
 		optionGroup(c, "Task Runner", false, func() {
 			for _, o := range taskRunnerOptions {
-				radioCard(c.Key(o.value), p.TaskRunner, o, func(v TaskRunner) { w.selection.Project.TaskRunner = v })
+				radioCard(c.Key(o.value), p.TaskRunner, o, func(v config.TaskRunner) { w.selection.Project.TaskRunner = v })
 			}
 		})
 		w.stepActions(c)
 	})
 }
 
-func (w *wizard) projectField(c *ui.Context, f projectField, label, hint, placeholder string) ui.Element {
+func (w *Wizard) projectField(c *ui.Context, f projectField, label, hint, placeholder string) ui.Element {
 	return textField(c, label, hint, placeholder, *projectValue(&w.selection.Project, f), w.showProjectErrors,
 		func(v string) { w.setProjectField(f, v) })
 }
 
-func (w *wizard) frontendStep(c *ui.Context) {
+func (w *Wizard) frontendStep(c *ui.Context) {
 	f := w.selection.Frontend
 	formCard(c, func() {
 		formHeading(c, "Step 3 of 7", "Frontend", func() {
@@ -317,7 +319,7 @@ func (w *wizard) frontendStep(c *ui.Context) {
 				radioCard(c.Key(o.value), f.Type, o, w.setFrontend)
 			}
 		})
-		if isServerRendered(f.Type) {
+		if config.IsServerRendered(f.Type) {
 			optionGroup(c, "Additional Support", false, func() {
 				checkCard(c.Key("htmx"), f.HTMX, "HTMX", "Add HTMX for dynamic server-rendered pages", false,
 					func() { w.selection.Frontend.HTMX = !w.selection.Frontend.HTMX })
@@ -327,7 +329,7 @@ func (w *wizard) frontendStep(c *ui.Context) {
 	})
 }
 
-func (w *wizard) databaseStep(c *ui.Context) {
+func (w *Wizard) databaseStep(c *ui.Context) {
 	d := w.selection.Database
 	formCard(c, func() {
 		formHeading(c, "Step 4 of 7", "Database", func() {
@@ -335,24 +337,24 @@ func (w *wizard) databaseStep(c *ui.Context) {
 		})
 		optionGroup(c, "Database", true, func() {
 			for _, o := range databaseOptions {
-				radioCard(c.Key(o.value), d.Engine, o, func(v DatabaseEngine) { w.selection.Database.Engine = v })
+				radioCard(c.Key(o.value), d.Engine, o, func(v config.DatabaseEngine) { w.selection.Database.Engine = v })
 			}
 		})
 		optionGroup(c, "Persistence Framework", false, func() {
 			for _, o := range persistenceOptions {
-				radioCard(c.Key(o.value), d.PersistenceFramework, o, func(v PersistenceFramework) { w.selection.Database.PersistenceFramework = v })
+				radioCard(c.Key(o.value), d.PersistenceFramework, o, func(v config.PersistenceFramework) { w.selection.Database.PersistenceFramework = v })
 			}
 		})
 		optionGroup(c, "Database Migration Tool", false, func() {
 			for _, o := range migrationOptions {
-				radioCard(c.Key(o.value), d.MigrationTool, o, func(v MigrationTool) { w.selection.Database.MigrationTool = v })
+				radioCard(c.Key(o.value), d.MigrationTool, o, func(v config.MigrationTool) { w.selection.Database.MigrationTool = v })
 			}
 		})
 		w.stepActions(c)
 	})
 }
 
-func (w *wizard) featuresStep(c *ui.Context) {
+func (w *Wizard) featuresStep(c *ui.Context) {
 	formCard(c, func() {
 		formHeading(c, "Step 5 of 7", "Features", func() {
 			subtitle(c, "Select any additional capabilities to include in your generated application.")
@@ -382,7 +384,7 @@ func featureGroup(c *ui.Context, legend string, cards func()) {
 	})
 }
 
-func (w *wizard) reviewStep(c *ui.Context) {
+func (w *Wizard) reviewStep(c *ui.Context) {
 	s := w.selection
 	formCard(c, func() {
 		formHeading(c, "Step 6 of 7", "Review", func() {
@@ -405,7 +407,7 @@ func (w *wizard) reviewStep(c *ui.Context) {
 			reviewSection(c, "Frontend", func() {
 				reviewRow(c, "Frontend", label(s.Frontend.Type))
 				htmx := "Disabled"
-				if isServerRendered(s.Frontend.Type) && s.Frontend.HTMX {
+				if config.IsServerRendered(s.Frontend.Type) && s.Frontend.HTMX {
 					htmx = "Enabled"
 				}
 				reviewRow(c, "HTMX Support", htmx)
@@ -477,7 +479,7 @@ func reviewRow(c *ui.Context, name, value string) {
 }
 
 // reviewField is a Project value the Review step can change in place.
-func (w *wizard) reviewField(c *ui.Context, f projectField, name, placeholder string) {
+func (w *Wizard) reviewField(c *ui.Context, f projectField, name, placeholder string) {
 	ui.Row(c).Gap(16).Padding(3, 0).Children(func() {
 		ui.Text(c, name).FontSize(13).TextColor(ui.Hex("#5f6375"))
 		ui.Spacer(c)
@@ -507,7 +509,7 @@ func reviewTags(c *ui.Context, names []string) {
 }
 
 // templatePanelView names the template to save the selection as.
-func (w *wizard) templatePanelView(c *ui.Context) {
+func (w *Wizard) templatePanelView(c *ui.Context) {
 	ui.Column(c).Margin(18, 0, 0, 0).Padding(16, 18).Gap(8).Radius(10).Border(1, ui.Hex("#dedfe7")).
 		Background(ui.RGBA(255, 255, 255, 0.58)).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
@@ -532,7 +534,7 @@ func (w *wizard) templatePanelView(c *ui.Context) {
 	})
 }
 
-func (w *wizard) completeStep(c *ui.Context) {
+func (w *Wizard) completeStep(c *ui.Context) {
 	width, _ := c.Size()
 	ui.Column(c).WidthPercent(90).MaxWidth(650).AlignItems(ui.Center).Padding(38, 0, 0, 0).Children(func() {
 		successIcon(c)
@@ -551,7 +553,7 @@ func (w *wizard) completeStep(c *ui.Context) {
 	})
 }
 
-func (w *wizard) templatesPage(c *ui.Context) {
+func (w *Wizard) templatesPage(c *ui.Context) {
 	formCard(c, func() {
 		count := "1 template"
 		if len(w.templateList) != 1 {
@@ -581,7 +583,7 @@ func (w *wizard) templatesPage(c *ui.Context) {
 	})
 }
 
-func (w *wizard) defaultsPage(c *ui.Context) {
+func (w *Wizard) defaultsPage(c *ui.Context) {
 	d := w.defaultsDraft
 	formCard(c, func() {
 		formHeading(c, "Defaults", "Project Defaults", func() {
@@ -595,12 +597,12 @@ func (w *wizard) defaultsPage(c *ui.Context) {
 		})
 		optionGroup(c, "Build Tool", false, func() {
 			for _, o := range buildToolOptions {
-				radioCard(c.Key(o.value), d.BuildTool, o, func(v BuildTool) { w.defaultsDraft.BuildTool = v; w.defaultsMsg = nil })
+				radioCard(c.Key(o.value), d.BuildTool, o, func(v config.BuildTool) { w.defaultsDraft.BuildTool = v; w.defaultsMsg = nil })
 			}
 		})
 		optionGroup(c, "Task Runner", false, func() {
 			for _, o := range taskRunnerOptions {
-				radioCard(c.Key(o.value), d.TaskRunner, o, func(v TaskRunner) { w.defaultsDraft.TaskRunner = v; w.defaultsMsg = nil })
+				radioCard(c.Key(o.value), d.TaskRunner, o, func(v config.TaskRunner) { w.defaultsDraft.TaskRunner = v; w.defaultsMsg = nil })
 			}
 		})
 		if w.defaultsMsg != nil {
@@ -608,7 +610,7 @@ func (w *wizard) defaultsPage(c *ui.Context) {
 		}
 		formActions(c, func() {
 			if secondaryButton(c, "Restore built-in values", false).Tooltip("Fill in SBGen's own defaults; Save to keep them").Clicked() {
-				w.defaultsDraft = builtInDefaults
+				w.defaultsDraft = store.BuiltInDefaults
 				w.defaultsMsg = nil
 			}
 		}, func() {

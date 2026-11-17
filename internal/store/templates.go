@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"crypto/rand"
@@ -10,16 +10,18 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sivaprasadreddy/sbgen/internal/config"
 )
 
 const templatesFileName = "templates.json"
 
 // Template is a named, saved selection of the wizard's options.
 type Template struct {
-	ID            string                 `json:"id"`
-	Name          string                 `json:"name"`
-	Configuration GeneratorConfiguration `json:"configuration"`
-	UpdatedAt     time.Time              `json:"updatedAt"`
+	ID            string                        `json:"id"`
+	Name          string                        `json:"name"`
+	Configuration config.GeneratorConfiguration `json:"configuration"`
+	UpdatedAt     time.Time                     `json:"updatedAt"`
 }
 
 // TemplateService stores the user's templates in templates.json in a
@@ -53,7 +55,7 @@ func (s *TemplateService) Save(template Template) (Template, error) {
 	if template.Name == "" {
 		return Template{}, errors.New("template name is required")
 	}
-	if err := validateConfiguration(template.Configuration); err != nil {
+	if err := config.Validate(template.Configuration); err != nil {
 		return Template{}, err
 	}
 
@@ -146,35 +148,35 @@ func (s *TemplateService) store(templates []Template) error {
 // they are listed: Maven, Mise, PostgreSQL, Flyway and Spring Data JPA with each kind of
 // frontend people start from most.
 func starterTemplates() []Template {
-	starter := func(id, name string, frontend FrontendSettings) Template {
+	starter := func(id, name string, frontend config.FrontendSettings) Template {
 		return Template{
 			ID:   id,
 			Name: name,
-			Configuration: GeneratorConfiguration{
-				Project: ProjectSettings{
+			Configuration: config.GeneratorConfiguration{
+				Project: config.ProjectSettings{
 					AppName:     "demo",
 					AppVersion:  "1.0.0",
 					GroupID:     "dev.sivalabs",
 					ArtifactID:  "demo",
 					PackageName: "dev.sivalabs.demo",
-					BuildTool:   BuildToolMaven,
-					TaskRunner:  TaskRunnerMise,
+					BuildTool:   config.BuildToolMaven,
+					TaskRunner:  config.TaskRunnerMise,
 				},
 				Frontend: frontend,
-				Database: DatabaseSettings{
-					Engine:               DatabasePostgreSQL,
-					MigrationTool:        MigrationFlyway,
-					PersistenceFramework: PersistenceSpringDataJPA,
+				Database: config.DatabaseSettings{
+					Engine:               config.DatabasePostgreSQL,
+					MigrationTool:        config.MigrationFlyway,
+					PersistenceFramework: config.PersistenceSpringDataJPA,
 				},
-				Features: []Feature{},
-				AIModels: []AIModel{},
+				Features: []config.Feature{},
+				AIModels: []config.AIModel{},
 			},
 		}
 	}
 	return []Template{
-		starter("starter-rest-api", "REST API", FrontendSettings{Type: FrontendNone}),
-		starter("starter-thymeleaf-htmx", "Thymeleaf + HTMX", FrontendSettings{Type: FrontendThymeleaf, HTMX: true}),
-		starter("starter-angular", "Angular", FrontendSettings{Type: FrontendAngular}),
+		starter("starter-rest-api", "REST API", config.FrontendSettings{Type: config.FrontendNone}),
+		starter("starter-thymeleaf-htmx", "Thymeleaf + HTMX", config.FrontendSettings{Type: config.FrontendThymeleaf, HTMX: true}),
+		starter("starter-angular", "Angular", config.FrontendSettings{Type: config.FrontendAngular}),
 	}
 }
 

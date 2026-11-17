@@ -1,9 +1,11 @@
-package main
+package store
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/sivaprasadreddy/sbgen/internal/config"
 )
 
 func newTestDefaultsService(t *testing.T) (*DefaultsService, string) {
@@ -18,7 +20,7 @@ func TestDefaultsServiceReturnsBuiltInDefaultsUntilSaved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if defaults != builtInDefaults {
+	if defaults != BuiltInDefaults {
 		t.Errorf("expected the built-in defaults, got %+v", defaults)
 	}
 	if _, err := os.Stat(filepath.Join(dir, defaultsFileName)); !os.IsNotExist(err) {
@@ -28,11 +30,11 @@ func TestDefaultsServiceReturnsBuiltInDefaultsUntilSaved(t *testing.T) {
 
 func TestDefaultsServiceSavesDefaults(t *testing.T) {
 	s, _ := newTestDefaultsService(t)
-	saved, err := s.Save(ProjectDefaults{AppVersion: " 0.1.0-SNAPSHOT ", GroupID: " com.example ", BuildTool: BuildToolGradle, TaskRunner: TaskRunnerTaskfile})
+	saved, err := s.Save(ProjectDefaults{AppVersion: " 0.1.0-SNAPSHOT ", GroupID: " com.example ", BuildTool: config.BuildToolGradle, TaskRunner: config.TaskRunnerTaskfile})
 	if err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	want := ProjectDefaults{AppVersion: "0.1.0-SNAPSHOT", GroupID: "com.example", BuildTool: BuildToolGradle, TaskRunner: TaskRunnerTaskfile}
+	want := ProjectDefaults{AppVersion: "0.1.0-SNAPSHOT", GroupID: "com.example", BuildTool: config.BuildToolGradle, TaskRunner: config.TaskRunnerTaskfile}
 	if saved != want {
 		t.Errorf("saved %+v, want %+v", saved, want)
 	}
@@ -57,7 +59,7 @@ func TestDefaultsServiceRejectsInvalidDefaults(t *testing.T) {
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
 			s, dir := newTestDefaultsService(t)
-			defaults := builtInDefaults
+			defaults := BuiltInDefaults
 			mutate(&defaults)
 			if _, err := s.Save(defaults); err == nil {
 				t.Errorf("expected an error")

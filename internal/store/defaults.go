@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"errors"
@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/sivaprasadreddy/sbgen/internal/config"
 )
 
 const defaultsFileName = "defaults.json"
@@ -17,18 +19,18 @@ var mavenGroupIDPattern = regexp.MustCompile(`^[A-Za-z0-9_\-.]+$`)
 
 // ProjectDefaults are the values the Project step starts a new application with.
 type ProjectDefaults struct {
-	AppVersion string     `json:"appVersion"`
-	GroupID    string     `json:"groupId"`
-	BuildTool  BuildTool  `json:"buildTool"`
-	TaskRunner TaskRunner `json:"taskRunner"`
+	AppVersion string            `json:"appVersion"`
+	GroupID    string            `json:"groupId"`
+	BuildTool  config.BuildTool  `json:"buildTool"`
+	TaskRunner config.TaskRunner `json:"taskRunner"`
 }
 
-// builtInDefaults are the defaults until the user saves their own.
-var builtInDefaults = ProjectDefaults{
+// BuiltInDefaults are the defaults until the user saves their own.
+var BuiltInDefaults = ProjectDefaults{
 	AppVersion: "1.0.0",
 	GroupID:    "dev.sivalabs",
-	BuildTool:  BuildToolMaven,
-	TaskRunner: TaskRunnerMise,
+	BuildTool:  config.BuildToolMaven,
+	TaskRunner: config.TaskRunnerMise,
 }
 
 // DefaultsService stores the user's project defaults in defaults.json in a
@@ -54,7 +56,7 @@ func (s *DefaultsService) Get() (ProjectDefaults, error) {
 	if err != nil {
 		return ProjectDefaults{}, err
 	}
-	defaults := builtInDefaults
+	defaults := BuiltInDefaults
 	if _, err := readJSONFile(path, &defaults); err != nil {
 		return ProjectDefaults{}, fmt.Errorf("read defaults: %w", err)
 	}
@@ -74,10 +76,10 @@ func (s *DefaultsService) Save(defaults ProjectDefaults) (ProjectDefaults, error
 	if !mavenGroupIDPattern.MatchString(defaults.GroupID) {
 		return ProjectDefaults{}, fmt.Errorf("invalid group ID %q: use letters, digits, '.', '-' and '_'", defaults.GroupID)
 	}
-	if !slices.Contains([]BuildTool{BuildToolMaven, BuildToolGradle}, defaults.BuildTool) {
+	if !slices.Contains([]config.BuildTool{config.BuildToolMaven, config.BuildToolGradle}, defaults.BuildTool) {
 		return ProjectDefaults{}, fmt.Errorf("unsupported build tool %q", defaults.BuildTool)
 	}
-	if !slices.Contains([]TaskRunner{TaskRunnerMise, TaskRunnerTaskfile}, defaults.TaskRunner) {
+	if !slices.Contains([]config.TaskRunner{config.TaskRunnerMise, config.TaskRunnerTaskfile}, defaults.TaskRunner) {
 		return ProjectDefaults{}, fmt.Errorf("unsupported task runner %q", defaults.TaskRunner)
 	}
 

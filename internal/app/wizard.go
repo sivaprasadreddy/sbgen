@@ -1,9 +1,14 @@
-package main
+// Package app is SBGen's window: the wizard's state and actions, and the
+// native view MyGo draws from them.
+package app
 
 import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/sivaprasadreddy/sbgen/internal/config"
+	"github.com/sivaprasadreddy/sbgen/internal/store"
 )
 
 // The wizard's steps, in order. stepWelcome and stepComplete bracket the
@@ -47,13 +52,13 @@ const (
 	fieldPackageName
 )
 
-// wizard is the state of the window: the selection being made, the step it
+// Wizard is the state of the window: the selection being made, the step it
 // is on, and the user's templates and defaults.
-type wizard struct {
-	templates templateStore
-	defaults  defaultsStore
+type Wizard struct {
+	templates TemplateStore
+	defaults  DefaultsStore
 	// generate generates a project and returns the archive's path.
-	generate func(GeneratorConfiguration) (string, error)
+	generate func(config.GeneratorConfiguration) (string, error)
 	// async runs work off the UI thread, then apply on it: in a goroutine
 	// and Window.Update in the app, at once in tests.
 	async func(work func() (apply func()))
@@ -62,7 +67,7 @@ type wizard struct {
 	page page
 
 	// selection is what the steps chose so far.
-	selection GeneratorConfiguration
+	selection config.GeneratorConfiguration
 	// projectConfirmed is whether the user went past the Project step, or
 	// loaded a template, after which new defaults leave the project alone.
 	projectConfirmed bool
@@ -74,42 +79,45 @@ type wizard struct {
 	generationError string
 	generating      bool
 
-	templateList   []Template
+	templateList   []store.Template
 	templatesError string
 	// activeTemplate is the template the selection was loaded from or last
 	// saved as.
-	activeTemplate *Template
+	activeTemplate *store.Template
 	templatePanel  bool
 	templateName   string
 	templateMsg    *message
 
-	projectDefaults ProjectDefaults
-	defaultsDraft   ProjectDefaults
+	projectDefaults store.ProjectDefaults
+	defaultsDraft   store.ProjectDefaults
 	defaultsMsg     *message
 
 	// Confirmations shown with an alert: discarding the selection, and
 	// deleting deleteTarget.
 	confirmingCancel bool
 	confirmingDelete bool
-	deleteTarget     *Template
+	deleteTarget     *store.Template
 }
 
-// templateStore and defaultsStore are what the wizard needs of
-// TemplateService and DefaultsService.
-type templateStore interface {
-	List() ([]Template, error)
-	Save(Template) (Template, error)
+// TemplateStore is what the wizard needs of store.TemplateService.
+type TemplateStore interface {
+	List() ([]store.Template, error)
+	Save(store.Template) (store.Template, error)
 	Delete(id string) error
 }
 
-type defaultsStore interface {
-	Get() (ProjectDefaults, error)
-	Save(ProjectDefaults) (ProjectDefaults, error)
+// DefaultsStore is what the wizard needs of store.DefaultsService.
+type DefaultsStore interface {
+	Get() (store.ProjectDefaults, error)
+	Save(store.ProjectDefaults) (store.ProjectDefaults, error)
 }
 
-func newWizard(templates templateStore, defaults defaultsStore, generate func(GeneratorConfiguration) (string, error), async func(func() func())) *wizard {
-	w := &wizard{templates: templates, defaults: defaults, generate: generate, async: async}
-	w.projectDefaults = builtInDefaults
+// NewWizard returns a wizard on the Welcome step. generate generates a
+// project and returns the archive's path; async runs work off the UI thread
+// and then the func it returns on it.
+func NewWizard(templates TemplateStore, defaults DefaultsStore, generate func(config.GeneratorConfiguration) (string, error), async func(func() func())) *Wizard {
+	w := &Wizard{templates: templates, defaults: defaults, generate: generate, async: async}
+	w.projectDefaults = store.BuiltInDefaults
 	if saved, err := defaults.Get(); err == nil {
 		w.projectDefaults = saved
 	} else {
@@ -122,20 +130,20 @@ func newWizard(templates templateStore, defaults defaultsStore, generate func(Ge
 
 // newSelection is a fresh selection: the Project step from the defaults,
 // and the first choice of every other step.
-func newSelection(d ProjectDefaults) GeneratorConfiguration {
-	return GeneratorConfiguration{
+func newSelection(d store.ProjectDefaults) config.GeneratorConfiguration {
+	return config.GeneratorConfiguration{
 		Project:  projectFromDefaults(d),
-		Frontend: FrontendSettings{Type: FrontendNone},
-		Database: DatabaseSettings{Engine: DatabasePostgreSQL, MigrationTool: MigrationFlyway, PersistenceFramework: PersistenceSpringDataJPA},
-		Features: []Feature{},
-		AIModels: []AIModel{},
+		Frontend: config.FrontendSettings{Type: config.FrontendNone},
+		Database: config.DatabaseSettings{Engine: config.DatabasePostgreSQL, MigrationTool: config.MigrationFlyway, PersistenceFramework: config.PersistenceSpringDataJPA},
+		Features: []config.Feature{},
+		AIModels: []config.AIModel{},
 	}
 }
 
 // projectFromDefaults is the Project step's starting values for a new
 // application.
-func projectFromDefaults(d ProjectDefaults) ProjectSettings {
-	return ProjectSettings{
+func projectFromDefaults(d store.ProjectDefaults) config.ProjectSettings {
+	return config.ProjectSettings{
 		AppName:     "demo",
 		AppVersion:  d.AppVersion,
 		GroupID:     d.GroupID,
@@ -160,7 +168,7 @@ func deriveBasePackage(groupID, artifactID string) string {
 }
 
 // projectValue returns a pointer to one of p's text fields.
-func projectValue(p *ProjectSettings, f projectField) *string {
+func projectValue(p *config.ProjectSettings, f projectField) *string {
 	switch f {
 	case fieldAppName:
 		return &p.AppName
@@ -176,7 +184,7 @@ func projectValue(p *ProjectSettings, f projectField) *string {
 
 // setProjectField changes a Project field. The package name follows the
 // group and artifact IDs until the user customizes it.
-func (w *wizard) setProjectField(f projectField, value string) {
+func (w *Wizard) setProjectField(f projectField, value string) {
 	p := &w.selection.Project
 	derived := p.PackageName == deriveBasePackage(p.GroupID, p.ArtifactID)
 	*projectValue(p, f) = value
@@ -187,7 +195,7 @@ func (w *wizard) setProjectField(f projectField, value string) {
 }
 
 // projectComplete reports whether every Project text field is filled in.
-func (w *wizard) projectComplete() bool {
+func (w *Wizard) projectComplete() bool {
 	for f := fieldAppName; f <= fieldPackageName; f++ {
 		if strings.TrimSpace(*projectValue(&w.selection.Project, f)) == "" {
 			return false
@@ -197,11 +205,11 @@ func (w *wizard) projectComplete() bool {
 }
 
 // setFrontend chooses a frontend. HTMX stays only with a server-rendered one.
-func (w *wizard) setFrontend(t FrontendType) {
-	w.selection.Frontend = FrontendSettings{Type: t, HTMX: isServerRendered(t) && w.selection.Frontend.HTMX}
+func (w *Wizard) setFrontend(t config.FrontendType) {
+	w.selection.Frontend = config.FrontendSettings{Type: t, HTMX: config.IsServerRendered(t) && w.selection.Frontend.HTMX}
 }
 
-func (w *wizard) toggleFeature(f Feature) {
+func (w *Wizard) toggleFeature(f config.Feature) {
 	if i := slices.Index(w.selection.Features, f); i >= 0 {
 		w.selection.Features = slices.Delete(slices.Clone(w.selection.Features), i, i+1)
 		return
@@ -210,9 +218,9 @@ func (w *wizard) toggleFeature(f Feature) {
 }
 
 // toggleAIModel keeps the models in their canonical order.
-func (w *wizard) toggleAIModel(m AIModel) {
+func (w *Wizard) toggleAIModel(m config.AIModel) {
 	chosen := slices.Contains(w.selection.AIModels, m)
-	models := []AIModel{}
+	models := []config.AIModel{}
 	for _, o := range aiModelOptions {
 		if (o.value == m && !chosen) || (o.value != m && slices.Contains(w.selection.AIModels, o.value)) {
 			models = append(models, o.value)
@@ -223,7 +231,7 @@ func (w *wizard) toggleAIModel(m AIModel) {
 
 // next goes on from the current step. The Project step goes on only with
 // its fields filled in.
-func (w *wizard) next() {
+func (w *Wizard) next() {
 	if w.step == stepProject {
 		if !w.projectComplete() {
 			w.showProjectErrors = true
@@ -237,7 +245,7 @@ func (w *wizard) next() {
 	}
 }
 
-func (w *wizard) back() {
+func (w *Wizard) back() {
 	if w.step == stepReview {
 		// A message about the selection goes stale once it can change.
 		w.templatePanel = false
@@ -250,7 +258,7 @@ func (w *wizard) back() {
 
 // getStarted begins a project. Without a template it starts from the
 // defaults, not from a template looked at earlier.
-func (w *wizard) getStarted() {
+func (w *Wizard) getStarted() {
 	if w.activeTemplate != nil {
 		w.resetSelection()
 	}
@@ -258,7 +266,7 @@ func (w *wizard) getStarted() {
 }
 
 // resetSelection drops every choice and the loaded template.
-func (w *wizard) resetSelection() {
+func (w *Wizard) resetSelection() {
 	w.selection = newSelection(w.projectDefaults)
 	w.projectConfirmed = false
 	w.showProjectErrors = false
@@ -269,13 +277,13 @@ func (w *wizard) resetSelection() {
 }
 
 // cancel is Cancel's action once the user confirmed it.
-func (w *wizard) cancel() {
+func (w *Wizard) cancel() {
 	w.resetSelection()
 	w.generationError = ""
 	w.step = stepWelcome
 }
 
-func (w *wizard) startNew() {
+func (w *Wizard) startNew() {
 	w.resetSelection()
 	w.downloadedPath = ""
 	w.generationError = ""
@@ -285,12 +293,12 @@ func (w *wizard) startNew() {
 
 // applyTemplate loads a template's selection into every step, then shows
 // step.
-func (w *wizard) applyTemplate(t Template, step int) {
+func (w *Wizard) applyTemplate(t store.Template, step int) {
 	w.selection = cloneConfiguration(t.Configuration)
 	if w.selection.Features == nil {
-		w.selection.Features = []Feature{}
+		w.selection.Features = []config.Feature{}
 	}
-	ordered := []AIModel{}
+	ordered := []config.AIModel{}
 	for _, o := range aiModelOptions {
 		if slices.Contains(t.Configuration.AIModels, o.value) {
 			ordered = append(ordered, o.value)
@@ -309,20 +317,20 @@ func (w *wizard) applyTemplate(t Template, step int) {
 	w.step = step
 }
 
-func cloneConfiguration(c GeneratorConfiguration) GeneratorConfiguration {
+func cloneConfiguration(c config.GeneratorConfiguration) config.GeneratorConfiguration {
 	c.Features = slices.Clone(c.Features)
 	c.AIModels = slices.Clone(c.AIModels)
 	return c
 }
 
 // configuration is the selection as the generator and templates take it.
-func (w *wizard) configuration() GeneratorConfiguration {
+func (w *Wizard) configuration() config.GeneratorConfiguration {
 	c := cloneConfiguration(w.selection)
-	c.Frontend.HTMX = isServerRendered(c.Frontend.Type) && c.Frontend.HTMX
+	c.Frontend.HTMX = config.IsServerRendered(c.Frontend.Type) && c.Frontend.HTMX
 	return c
 }
 
-func (w *wizard) refreshTemplates() {
+func (w *Wizard) refreshTemplates() {
 	list, err := w.templates.List()
 	if err != nil {
 		w.templatesError = "Could not load templates: " + err.Error()
@@ -334,7 +342,7 @@ func (w *wizard) refreshTemplates() {
 
 // saveTemplate saves the selection as a new template, or over the active
 // one when update is true.
-func (w *wizard) saveTemplate(update bool) {
+func (w *Wizard) saveTemplate(update bool) {
 	if !w.projectComplete() {
 		w.showProjectErrors = true
 		return
@@ -343,7 +351,7 @@ func (w *wizard) saveTemplate(update bool) {
 	if update && w.activeTemplate != nil {
 		id = w.activeTemplate.ID
 	}
-	saved, err := w.templates.Save(Template{ID: id, Name: w.templateName, Configuration: w.configuration()})
+	saved, err := w.templates.Save(store.Template{ID: id, Name: w.templateName, Configuration: w.configuration()})
 	if err != nil {
 		w.templateMsg = &message{text: err.Error(), error: true}
 		return
@@ -358,7 +366,7 @@ func (w *wizard) saveTemplate(update bool) {
 	w.refreshTemplates()
 }
 
-func (w *wizard) deleteTemplate(t Template) {
+func (w *Wizard) deleteTemplate(t store.Template) {
 	if err := w.templates.Delete(t.ID); err != nil {
 		w.templatesError = fmt.Sprintf("Could not delete “%s”: %v", t.Name, err)
 		return
@@ -371,7 +379,7 @@ func (w *wizard) deleteTemplate(t Template) {
 
 // startGenerating generates the project off the UI thread and shows the
 // Complete step, or the error, when it is done.
-func (w *wizard) startGenerating() {
+func (w *Wizard) startGenerating() {
 	if w.generating {
 		return
 	}
@@ -396,7 +404,7 @@ func (w *wizard) startGenerating() {
 	})
 }
 
-func (w *wizard) openPage(p page) {
+func (w *Wizard) openPage(p page) {
 	switch p {
 	case pageTemplates:
 		w.refreshTemplates()
@@ -410,7 +418,7 @@ func (w *wizard) openPage(p page) {
 // saveDefaults saves the Defaults page. A Project step that still shows the
 // previous defaults follows the new ones; one the user changed, confirmed
 // or filled from a template keeps its values.
-func (w *wizard) saveDefaults() {
+func (w *Wizard) saveDefaults() {
 	saved, err := w.defaults.Save(w.defaultsDraft)
 	if err != nil {
 		w.defaultsMsg = &message{text: err.Error(), error: true}
@@ -426,9 +434,9 @@ func (w *wizard) saveDefaults() {
 
 // templateSummary is a one-line description of a template's main choices,
 // e.g. "Maven · JTE + HTMX · PostgreSQL · Spring Data JPA · 2 features".
-func templateSummary(c GeneratorConfiguration) string {
+func templateSummary(c config.GeneratorConfiguration) string {
 	frontend := "REST API"
-	if c.Frontend.Type != FrontendNone {
+	if c.Frontend.Type != config.FrontendNone {
 		frontend = label(c.Frontend.Type)
 		if c.Frontend.HTMX {
 			frontend += " + HTMX"

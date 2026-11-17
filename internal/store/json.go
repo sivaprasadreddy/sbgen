@@ -1,4 +1,6 @@
-package main
+// Package store keeps the user's templates and project defaults as JSON files
+// in the app's user data directory.
+package store
 
 import (
 	"encoding/json"

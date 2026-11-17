@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"errors"
@@ -9,18 +9,20 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/sivaprasadreddy/sbgen/internal/config"
+	"github.com/sivaprasadreddy/sbgen/internal/store"
 )
 
 // newTestWizard is a wizard whose templates and defaults are in a temporary
 // directory, generating with generate and running work at once.
-func newTestWizard(t *testing.T, generate func(GeneratorConfiguration) (string, error)) *wizard {
+func newTestWizard(t *testing.T, generate func(config.GeneratorConfiguration) (string, error)) *Wizard {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "SBGen")
 	userData := func() (string, error) { return dir, nil }
 	if generate == nil {
-		generate = func(GeneratorConfiguration) (string, error) { return "/tmp/demo.zip", nil }
+		generate = func(config.GeneratorConfiguration) (string, error) { return "/tmp/demo.zip", nil }
 	}
-	return newWizard(NewTemplateService(userData), NewDefaultsService(userData), generate, func(work func() func()) { work()() })
+	return NewWizard(store.NewTemplateService(userData), store.NewDefaultsService(userData), generate, func(work func() func()) { work()() })
 }
 
 // TestSnapshots saves a picture of every screen in SBGEN_SNAPSHOT_DIR, to
@@ -31,7 +33,7 @@ func TestSnapshots(t *testing.T) {
 		t.Skip("SBGEN_SNAPSHOT_DIR not set")
 	}
 	w := newTestWizard(t, nil)
-	tt := ui.NewTester(w.view, 1200, 800)
+	tt := ui.NewTester(w.View, 1200, 800)
 	save := func(name string) {
 		t.Helper()
 		f, err := os.Create(filepath.Join(dir, name+".png"))
@@ -72,7 +74,7 @@ func TestSnapshots(t *testing.T) {
 }
 
 // viewTester runs w's view in a window of the app's default size.
-func viewTester(w *wizard) *ui.Tester { return ui.NewTester(w.view, 1200, 800) }
+func viewTester(w *Wizard) *ui.Tester { return ui.NewTester(w.View, 1200, 800) }
 
 func click(t *testing.T, tt *ui.Tester, label string) {
 	t.Helper()
@@ -106,7 +108,7 @@ func TestProjectStepStartsFromDefaultsAndDerivesThePackage(t *testing.T) {
 	w := newTestWizard(t, nil)
 	tt := viewTester(w)
 	click(t, tt, "Get started")
-	if p := w.selection.Project; p != projectFromDefaults(builtInDefaults) {
+	if p := w.selection.Project; p != projectFromDefaults(store.BuiltInDefaults) {
 		t.Fatalf("Project starts at %+v", p)
 	}
 	replace(t, tt, "Group ID", "com.acme")
@@ -157,8 +159,8 @@ func TestHTMXGoesWithServerRenderedFrontends(t *testing.T) {
 }
 
 func TestGeneratesTheSelection(t *testing.T) {
-	var generated GeneratorConfiguration
-	w := newTestWizard(t, func(c GeneratorConfiguration) (string, error) {
+	var generated config.GeneratorConfiguration
+	w := newTestWizard(t, func(c config.GeneratorConfiguration) (string, error) {
 		generated = c
 		return "/Users/me/Downloads/orders.zip", nil
 	})
@@ -182,12 +184,12 @@ func TestGeneratesTheSelection(t *testing.T) {
 		t.Fatalf("not on Review: step %d", w.step)
 	}
 	click(t, tt, "Generate")
-	want := GeneratorConfiguration{
-		Project:  ProjectSettings{AppName: "orders", AppVersion: "1.0.0", GroupID: "dev.sivalabs", ArtifactID: "demo", PackageName: "dev.sivalabs.demo", BuildTool: BuildToolGradle, TaskRunner: TaskRunnerMise},
-		Frontend: FrontendSettings{Type: FrontendJTE, HTMX: true},
-		Database: DatabaseSettings{Engine: DatabaseMySQL, MigrationTool: MigrationLiquibase, PersistenceFramework: PersistenceJOOQ},
-		Features: []Feature{FeatureEmail},
-		AIModels: []AIModel{AIModelOllama, AIModelAnthropic}, // canonical order
+	want := config.GeneratorConfiguration{
+		Project:  config.ProjectSettings{AppName: "orders", AppVersion: "1.0.0", GroupID: "dev.sivalabs", ArtifactID: "demo", PackageName: "dev.sivalabs.demo", BuildTool: config.BuildToolGradle, TaskRunner: config.TaskRunnerMise},
+		Frontend: config.FrontendSettings{Type: config.FrontendJTE, HTMX: true},
+		Database: config.DatabaseSettings{Engine: config.DatabaseMySQL, MigrationTool: config.MigrationLiquibase, PersistenceFramework: config.PersistenceJOOQ},
+		Features: []config.Feature{config.FeatureEmail},
+		AIModels: []config.AIModel{config.AIModelOllama, config.AIModelAnthropic}, // canonical order
 	}
 	if generated.Project != want.Project || generated.Frontend != want.Frontend || generated.Database != want.Database ||
 		!slices.Equal(generated.Features, want.Features) || !slices.Equal(generated.AIModels, want.AIModels) {
@@ -203,7 +205,9 @@ func TestGeneratesTheSelection(t *testing.T) {
 }
 
 func TestShowsAGenerationError(t *testing.T) {
-	w := newTestWizard(t, func(GeneratorConfiguration) (string, error) { return "", errors.New("generate project: exit status 1") })
+	w := newTestWizard(t, func(config.GeneratorConfiguration) (string, error) {
+		return "", errors.New("generate project: exit status 1")
+	})
 	tt := viewTester(w)
 	click(t, tt, "Get started")
 	for range 4 {
@@ -237,7 +241,7 @@ func TestTemplatesOpenAtReviewAndSaveTheEditedSelection(t *testing.T) {
 	if !slices.Equal(names, []string{"REST API", "Thymeleaf + HTMX", "Angular", "Orders"}) {
 		t.Fatalf("templates %q", names)
 	}
-	if got := list[3].Configuration; got.Project.AppName != "orders" || !got.Frontend.HTMX || got.Frontend.Type != FrontendThymeleaf {
+	if got := list[3].Configuration; got.Project.AppName != "orders" || !got.Frontend.HTMX || got.Frontend.Type != config.FrontendThymeleaf {
 		t.Errorf("saved %+v", got)
 	}
 	if list[1].Configuration.Project.AppName != "demo" {
@@ -302,7 +306,7 @@ func TestCancelAsksBeforeDiscardingTheSelection(t *testing.T) {
 	}
 	click(t, tt, "Cancel")
 	click(t, tt, "Discard")
-	if w.step != stepWelcome || w.activeTemplate != nil || w.selection.Frontend.Type != FrontendNone || w.selection.Project.AppName != "demo" {
+	if w.step != stepWelcome || w.activeTemplate != nil || w.selection.Frontend.Type != config.FrontendNone || w.selection.Project.AppName != "demo" {
 		t.Errorf("not discarded: step %d, %+v", w.step, w.selection)
 	}
 }
@@ -326,7 +330,7 @@ func TestDefaultsPrefillNewProjects(t *testing.T) {
 	}
 	click(t, tt, "Back to Welcome")
 	click(t, tt, "Get started")
-	want := ProjectSettings{AppName: "demo", AppVersion: "0.1.0", GroupID: "com.acme", ArtifactID: "demo", PackageName: "com.acme.demo", BuildTool: BuildToolGradle, TaskRunner: TaskRunnerTaskfile}
+	want := config.ProjectSettings{AppName: "demo", AppVersion: "0.1.0", GroupID: "com.acme", ArtifactID: "demo", PackageName: "com.acme.demo", BuildTool: config.BuildToolGradle, TaskRunner: config.TaskRunnerTaskfile}
 	if w.selection.Project != want {
 		t.Errorf("Project %+v, want %+v", w.selection.Project, want)
 	}
@@ -342,7 +346,7 @@ func TestDefaultsPrefillNewProjects(t *testing.T) {
 	}
 
 	// A new wizard reads the saved defaults.
-	again := newWizard(w.templates, w.defaults, w.generate, w.async)
+	again := NewWizard(w.templates, w.defaults, w.generate, w.async)
 	if again.selection.Project.AppVersion != "2.0.0" {
 		t.Errorf("defaults not kept: %+v", again.selection.Project)
 	}

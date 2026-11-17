@@ -1,4 +1,4 @@
-package main
+package generator
 
 import (
 	"archive/zip"
@@ -8,37 +8,38 @@ import (
 	"testing"
 
 	"github.com/sivaprasadreddy/progen/generators/springboot"
+	"github.com/sivaprasadreddy/sbgen/internal/config"
 )
 
-func validConfiguration() GeneratorConfiguration {
-	return GeneratorConfiguration{
-		Project: ProjectSettings{
+func validConfiguration() config.GeneratorConfiguration {
+	return config.GeneratorConfiguration{
+		Project: config.ProjectSettings{
 			AppName:     "demo",
 			AppVersion:  "1.0.0",
 			GroupID:     "dev.sivalabs",
 			ArtifactID:  "demo",
 			PackageName: "dev.sivalabs.demo",
-			BuildTool:   BuildToolMaven,
-			TaskRunner:  TaskRunnerMise,
+			BuildTool:   config.BuildToolMaven,
+			TaskRunner:  config.TaskRunnerMise,
 		},
-		Frontend: FrontendSettings{Type: FrontendNone},
-		Database: DatabaseSettings{
-			Engine:               DatabasePostgreSQL,
-			MigrationTool:        MigrationFlyway,
-			PersistenceFramework: PersistenceSpringDataJPA,
+		Frontend: config.FrontendSettings{Type: config.FrontendNone},
+		Database: config.DatabaseSettings{
+			Engine:               config.DatabasePostgreSQL,
+			MigrationTool:        config.MigrationFlyway,
+			PersistenceFramework: config.PersistenceSpringDataJPA,
 		},
 	}
 }
 
 func TestToProjectConfigMapsJTEWithHTMXAndAIModels(t *testing.T) {
 	c := validConfiguration()
-	c.Project.BuildTool = BuildToolGradle
-	c.Frontend.Type = FrontendJTE
+	c.Project.BuildTool = config.BuildToolGradle
+	c.Frontend.Type = config.FrontendJTE
 	c.Frontend.HTMX = true
-	c.Features = []Feature{FeatureEmail, FeatureKubernetes}
-	c.AIModels = []AIModel{AIModelOpenAI, AIModelOllama}
+	c.Features = []config.Feature{config.FeatureEmail, config.FeatureKubernetes}
+	c.AIModels = []config.AIModel{config.AIModelOpenAI, config.AIModelOllama}
 
-	if err := validateConfiguration(c); err != nil {
+	if err := config.Validate(c); err != nil {
 		t.Fatalf("expected valid configuration, got %v", err)
 	}
 	pc := toProjectConfig(c)
@@ -62,10 +63,10 @@ func TestToProjectConfigMapsJTEWithHTMXAndAIModels(t *testing.T) {
 
 func TestToProjectConfigMapsReactWithTaskfile(t *testing.T) {
 	c := validConfiguration()
-	c.Project.TaskRunner = TaskRunnerTaskfile
-	c.Frontend.Type = FrontendReact
+	c.Project.TaskRunner = config.TaskRunnerTaskfile
+	c.Frontend.Type = config.FrontendReact
 
-	if err := validateConfiguration(c); err != nil {
+	if err := config.Validate(c); err != nil {
 		t.Fatalf("expected valid configuration, got %v", err)
 	}
 	pc := toProjectConfig(c)
@@ -85,31 +86,6 @@ func TestToProjectConfigMapsMiseTaskRunner(t *testing.T) {
 	}
 }
 
-func TestValidateConfigurationRejectsInvalidCombinations(t *testing.T) {
-	cases := map[string]func(*GeneratorConfiguration){
-		"missing app name":    func(c *GeneratorConfiguration) { c.Project.AppName = " " },
-		"path in app name":    func(c *GeneratorConfiguration) { c.Project.AppName = "../demo" },
-		"missing version":     func(c *GeneratorConfiguration) { c.Project.AppVersion = "" },
-		"invalid package":     func(c *GeneratorConfiguration) { c.Project.PackageName = "1dev.sivalabs" },
-		"unknown build tool":  func(c *GeneratorConfiguration) { c.Project.BuildTool = "gradle-groovy" },
-		"missing task runner": func(c *GeneratorConfiguration) { c.Project.TaskRunner = "" },
-		"unknown task runner": func(c *GeneratorConfiguration) { c.Project.TaskRunner = "make" },
-		"htmx with react":     func(c *GeneratorConfiguration) { c.Frontend.Type = FrontendReact; c.Frontend.HTMX = true },
-		"htmx without views":  func(c *GeneratorConfiguration) { c.Frontend.HTMX = true },
-		"unknown ai provider": func(c *GeneratorConfiguration) { c.AIModels = []AIModel{"gemini"} },
-		"unknown feature":     func(c *GeneratorConfiguration) { c.Features = []Feature{"htmx"} },
-	}
-	for name, mutate := range cases {
-		t.Run(name, func(t *testing.T) {
-			c := validConfiguration()
-			mutate(&c)
-			if err := validateConfiguration(c); err == nil {
-				t.Errorf("expected validation error")
-			}
-		})
-	}
-}
-
 func TestGenerateProjectWritesZipToDownloads(t *testing.T) {
 	if testing.Short() {
 		t.Skip("generates a full project")
@@ -118,7 +94,7 @@ func TestGenerateProjectWritesZipToDownloads(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	path, err := (&AppGeneratorService{}).GenerateProject(validConfiguration())
+	path, err := (&Service{}).GenerateProject(validConfiguration())
 	if err != nil {
 		t.Fatalf("generate project: %v", err)
 	}
@@ -135,7 +111,7 @@ func TestGenerateProjectWritesZipToDownloads(t *testing.T) {
 	}
 
 	// A second generation must not overwrite the first archive.
-	second, err := (&AppGeneratorService{}).GenerateProject(validConfiguration())
+	second, err := (&Service{}).GenerateProject(validConfiguration())
 	if err != nil {
 		t.Fatalf("generate second project: %v", err)
 	}
