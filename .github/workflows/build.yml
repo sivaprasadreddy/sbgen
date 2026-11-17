@@ -11,10 +11,13 @@ jobs:
         include:
           - os: macos-latest
             goos: darwin
+            platform: darwin/universal
 #          - os: ubuntu-latest
 #            goos: linux
-#          - os: windows-latest
+#            platform: linux/amd64,linux/arm64
+#          - os: ubuntu-latest
 #            goos: windows
+#            platform: windows/amd64,windows/arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -23,22 +26,21 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.4'
+          go-version-file: go.mod
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
 
-      - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
-      - name: Install Task
-        uses: go-task/setup-task@v2
+      # -short skips the test that generates a full project, which needs a JDK.
+      - name: Test
+        run: go test -short ./...
 
       - name: Build
-        run: wails3 package
+        run: bun run build -- -platform "${{ matrix.platform }}"
 
       - uses: actions/upload-artifact@v7
         with:
           name: sbgen-${{ matrix.goos }}
-          path: bin/SBGen.app
+          path: build/

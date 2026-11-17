@@ -4,7 +4,8 @@ export default defineConfig({
   name: "SBGen",
   slug: "sbgen",
   identifier: "dev.sivalabs.sbgen",
-  version: "0.0.1",
+  // The release workflow sets SBGEN_VERSION from the tag (v1.2.3 → 1.2.3).
+  version: process.env.SBGEN_VERSION || "0.0.1",
   copyright: "© 2027 SivaLabs",
   // resources/icon.png is the icon of every platform; macOS 26 prefers the
   // layered Icon Composer icon (outside resources, which ship as they are).

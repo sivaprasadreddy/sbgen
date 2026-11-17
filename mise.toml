@@ -1,12 +1,6 @@
 [tools]
 go = "1.27.4"
-node = "26"
-
-[vars]
-main_src_dir = "."
-dist_dir = "dist"
-binary_name = "progen"
-goarches = "amd64 arm64"
+bun = "1.4.4"
 
 [tasks.default]
 description = "Run tests in short mode"
@@ -16,27 +10,18 @@ depends = ["test"]
 description = "Format Go source files"
 run = "go fmt ./..."
 
-[tasks.build]
-description = "Compile binaries for macOS, Linux, Windows (amd64/arm64) into dist/"
-depends = ["clean"]
-run = """
-for arch in {{vars.goarches}}; do
-  echo "Building MacOS binary ($arch)"
-  GOARCH=$arch GOOS=darwin go build -o {{vars.dist_dir}}/{{vars.binary_name}}-darwin-$arch {{vars.main_src_dir}}
-  echo "Building Linux binary ($arch)"
-  GOARCH=$arch GOOS=linux go build -o {{vars.dist_dir}}/{{vars.binary_name}}-linux-$arch {{vars.main_src_dir}}
-  echo "Building Windows binary ($arch)"
-  GOARCH=$arch GOOS=windows go build -o {{vars.dist_dir}}/{{vars.binary_name}}-windows-$arch.exe {{vars.main_src_dir}}
-done
-"""
-
-[tasks.run]
-description = "Run interactively"
+[tasks.dev]
+description = "Run the app in development mode with hot reload (mygo dev)"
 raw = true
-run = "go run main.go"
+run = "bun run dev"
+
+[tasks.build]
+description = "Build SBGen.app and a DMG into build/ (mygo build); pass e.g. -- -platform darwin/universal"
+depends = ["clean"]
+run = "bun run build"
 
 [tasks.test]
-description = "Run tests in short mode (skips permutation tests)"
+description = "Run tests in short mode (skips generating a full project)"
 depends = ["fmt"]
 run = [
   "echo 'Run tests in short mode...'",
@@ -51,8 +36,8 @@ run = [
 ]
 
 [tasks.clean]
-description = "Remove dist/"
+description = "Remove build output (build/ and dist/)"
 run = [
   "echo 'Cleaning...'",
-  "rm -rf {{vars.dist_dir}}",
+  "rm -rf build dist",
 ]

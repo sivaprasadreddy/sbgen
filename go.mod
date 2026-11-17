@@ -1,4 +1,4 @@
-module sbgen-mygo
+module github.com/sivaprasadreddy/sbgen
 
 go 1.27.4
 
