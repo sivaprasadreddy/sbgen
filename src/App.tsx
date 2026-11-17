@@ -491,7 +491,7 @@ function App() {
             </div>
 
             <div className="review-grid">
-              <section className="review-section">
+              <section className="review-section review-project">
                 <h2>Project</h2>
                 <dl>
                   <div><dt>Name</dt><dd>{savedMetadata.appName}</dd></div>
