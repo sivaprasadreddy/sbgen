@@ -36,7 +36,7 @@ func TestToProjectConfigMapsJTEWithHTMXAndAIModels(t *testing.T) {
 	c.Project.BuildTool = config.BuildToolGradle
 	c.Frontend.Type = config.FrontendJTE
 	c.Frontend.HTMX = true
-	c.Features = []config.Feature{config.FeatureEmail, config.FeatureKubernetes}
+	c.Features = []config.Feature{config.FeatureEmail, config.FeatureKubernetes, config.FeatureAxelix}
 	c.AIModels = []config.AIModel{config.AIModelOpenAI, config.AIModelOllama}
 
 	if err := config.Validate(c); err != nil {
@@ -50,7 +50,7 @@ func TestToProjectConfigMapsJTEWithHTMXAndAIModels(t *testing.T) {
 	if pc.BuildTool != springboot.Gradle {
 		t.Errorf("expected Gradle, got %s", pc.BuildTool)
 	}
-	if !pc.EmailSupport || !pc.K8sSupport || pc.RabbitMQSupport {
+	if !pc.EmailSupport || !pc.K8sSupport || !pc.AxelixSupport || pc.RabbitMQSupport {
 		t.Errorf("unexpected feature flags: %+v", pc)
 	}
 	if !slices.Contains(pc.SpringAIModels, springboot.AIModelOpenAI) || !slices.Contains(pc.SpringAIModels, springboot.AIModelOllama) {

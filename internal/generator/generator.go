@@ -157,6 +157,7 @@ func toProjectConfig(configuration config.GeneratorConfiguration) springboot.Pro
 		RedisCachingSupport:   slices.Contains(features, config.FeatureRedisCaching),
 		OpenTelemetrySupport:  slices.Contains(features, config.FeatureOpenTelemetry),
 		K8sSupport:            slices.Contains(features, config.FeatureKubernetes),
+		AxelixSupport:         slices.Contains(features, config.FeatureAxelix),
 		HTMXSupport:           configuration.Frontend.HTMX && config.IsServerRendered(configuration.Frontend.Type),
 		SpringAIModels:        aiModels,
 	}

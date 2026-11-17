@@ -15,7 +15,7 @@ SBGen gives you a graphical alternative to answering prompts in the terminal.
 | Project  | Application name and version, Group ID, Artifact ID, base package, build tool (Maven or Gradle), task runner (Mise or Taskfile with SDKMAN) |
 | Frontend | None (REST API), Thymeleaf, JTE, Angular, or React; optional HTMX for Thymeleaf and JTE                   |
 | Database | PostgreSQL, MySQL, or MariaDB; Spring Data JPA, Spring JdbcClient, or jOOQ; Flyway or Liquibase          |
-| Features | Spring Cloud AWS, Email, RabbitMQ, Redis Caching, OpenTelemetry, Kubernetes manifests                    |
+| Features | Spring Cloud AWS, Email, RabbitMQ, Redis Caching, OpenTelemetry, Kubernetes manifests, Axelix            |
 | AI       | Spring AI chat model providers: Ollama, OpenAI, Anthropic                                                |
 
 Security is configured automatically based on the frontend: session-based login for server-rendered

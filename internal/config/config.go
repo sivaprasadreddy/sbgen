@@ -78,6 +78,7 @@ const (
 	FeatureRedisCaching   Feature = "redis-caching"
 	FeatureOpenTelemetry  Feature = "opentelemetry"
 	FeatureKubernetes     Feature = "kubernetes"
+	FeatureAxelix         Feature = "axelix"
 )
 
 // AIModel is a Spring AI chat model provider.
@@ -177,7 +178,7 @@ func Validate(configuration GeneratorConfiguration) error {
 		return fmt.Errorf("unsupported persistence framework %q", database.PersistenceFramework)
 	}
 
-	supportedFeatures := []Feature{FeatureEmail, FeatureSpringCloudAWS, FeatureRabbitMQ, FeatureRedisCaching, FeatureOpenTelemetry, FeatureKubernetes}
+	supportedFeatures := []Feature{FeatureEmail, FeatureSpringCloudAWS, FeatureRabbitMQ, FeatureRedisCaching, FeatureOpenTelemetry, FeatureKubernetes, FeatureAxelix}
 	for _, feature := range configuration.Features {
 		if !slices.Contains(supportedFeatures, feature) {
 			return fmt.Errorf("unsupported feature %q", feature)

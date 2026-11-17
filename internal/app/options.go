@@ -52,6 +52,7 @@ var featureOptions = []option[config.Feature]{
 	{config.FeatureRedisCaching, "Redis Caching", "Add caching support backed by Redis"},
 	{config.FeatureOpenTelemetry, "OpenTelemetry", "Add distributed tracing and observability"},
 	{config.FeatureKubernetes, "Kubernetes Manifests", "Generate deployment manifests for Kubernetes"},
+	{config.FeatureAxelix, "Axelix", "Monitor and manage the service with Axelix"},
 }
 
 var aiModelOptions = []option[config.AIModel]{
@@ -69,7 +70,7 @@ var labels = map[string]string{
 	"flyway": "Flyway", "liquibase": "Liquibase",
 	"spring-data-jpa": "Spring Data JPA", "spring-jdbc-client": "Spring JdbcClient", "jooq": "jOOQ",
 	"email": "Email", "spring-cloud-aws": "Spring Cloud AWS", "rabbitmq": "RabbitMQ",
-	"redis-caching": "Redis Caching", "opentelemetry": "OpenTelemetry", "kubernetes": "Kubernetes Manifests",
+	"redis-caching": "Redis Caching", "opentelemetry": "OpenTelemetry", "kubernetes": "Kubernetes Manifests", "axelix": "Axelix",
 	"ollama": "Ollama", "openai": "OpenAI", "anthropic": "Anthropic",
 }
 

@@ -380,7 +380,7 @@ func (w *Wizard) featuresStep(c *ui.Context) {
 func featureGroup(c *ui.Context, legend string, cards func()) {
 	ui.Column(c).Children(func() {
 		ui.Text(c, legend).FontSize(12).FontWeight(700).TextColor(colorLabel).Margin(0, 0, 10, 0)
-		ui.Grid(c).Columns(2).Gap(12).Children(cards)
+		ui.Grid(c).Columns(3).Gap(12).Children(cards)
 	})
 }
 
